@@ -10,7 +10,7 @@ function jsonResponse(statusCode, obj, extraHeaders = {}) {
       "Content-Type": "application/json; charset=utf-8",
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Headers": "Content-Type",
-      "Access-Control-Allow-Methods": "POST,OPTIONS",
+      "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
       ...extraHeaders,
     },
     body: JSON.stringify(obj),
@@ -65,6 +65,28 @@ function pickFirstExisting(paths) {
   return null;
 }
 
+// перенос текста по ширине бокса
+function wrapByWidth(text, font, size, maxWidth) {
+  const words = cleanText(text).split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+
+  const lines = [];
+  let line = "";
+
+  for (const w of words) {
+    const test = line ? `${line} ${w}` : w;
+    const width = font.widthOfTextAtSize(test, size);
+    if (width <= maxWidth) {
+      line = test;
+    } else {
+      if (line) lines.push(line);
+      line = w;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
 export const handler = async (event) => {
   if (event.httpMethod === "OPTIONS") {
     return {
@@ -72,44 +94,89 @@ export const handler = async (event) => {
       headers: {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Headers": "Content-Type",
-        "Access-Control-Allow-Methods": "POST,OPTIONS",
+        "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
       },
       body: "",
     };
   }
 
-  const isDiag =
-    (event.queryStringParameters && event.queryStringParameters.diag === "1") ||
-    (event.rawQuery && String(event.rawQuery).includes("diag=1"));
+  const qs = event.queryStringParameters || {};
+  const isDiag = String(qs.diag || "") === "1";      // файловая диагностика
+  const isFields = String(qs.fields || "") === "1";  // показать список полей из layout
 
-  if (event.httpMethod !== "POST") {
-    return jsonResponse(405, { error: "method_not_allowed" });
+  // ✅ для diag/fields разрешаем GET
+  if ((isDiag || isFields) && event.httpMethod === "GET") {
+    // просто упадём ниже в общий код, payload будет пустой — и вернём диагностику/поля
+  } else {
+    // для генерации PDF оставляем только POST
+    if (event.httpMethod !== "POST") {
+      return jsonResponse(405, { error: "method_not_allowed" });
+    }
   }
 
   let payload = {};
-  try {
-    payload = JSON.parse(event.body || "{}");
-  } catch {
-    return jsonResponse(400, { error: "bad_json" });
+  if (event.httpMethod === "POST") {
+    try {
+      payload = JSON.parse(event.body || "{}");
+    } catch {
+      return jsonResponse(400, { error: "bad_json" });
+    }
   }
 
   const fields =
     payload.fields && typeof payload.fields === "object" ? payload.fields : {};
 
-  // Netlify runtime root
+  // ✅ Netlify runtime root
   const ROOT = "/var/task";
   const PUBLIC_DIR = path.join(ROOT, "public");
   const LAYOUT_PATH = path.join(ROOT, "layout-positions.json");
   const SEAL_PATH = path.join(PUBLIC_DIR, "seal.png");
   const CYR_TTF_PATH = path.join(ROOT, "fonts", "DejaVuSerif.ttf");
 
-  // фон: jpg/jpeg/png (приоритет jpg, как у тебя сейчас)
   const BG_PICKED = pickFirstExisting([
     path.join(PUBLIC_DIR, "bg_en_rf.jpg"),
     path.join(PUBLIC_DIR, "bg_en_rf.jpeg"),
     path.join(PUBLIC_DIR, "bg_en_rf.png"),
   ]);
 
+  // --- load layout positions ---
+  let FIELD_POS = {};
+  try {
+    const raw = fs.readFileSync(LAYOUT_PATH, "utf8");
+    const parsed = safeParsePositions(raw);
+    FIELD_POS =
+      parsed && parsed.pos && typeof parsed.pos === "object"
+        ? parsed.pos
+        : parsed && typeof parsed === "object"
+        ? parsed
+        : {};
+  } catch (e) {
+    return jsonResponse(500, {
+      error: "layout_load_failed",
+      message: String(e?.message || e),
+      expected_path: "/var/task/layout-positions.json",
+    });
+  }
+
+  // ✅ показать список полей, которые есть в layout (чтобы ты знал что отправлять)
+  if (isFields) {
+    const layoutKeys = Object.keys(FIELD_POS).filter((k) => String(k).startsWith("en_"));
+    const sentKeys = Object.keys(fields || {});
+    const missingInRequest = layoutKeys.filter((k) => !sentKeys.includes(k));
+    const unknownInRequest = sentKeys.filter((k) => !layoutKeys.includes(k));
+
+    return jsonResponse(200, {
+      layout_en_keys_count: layoutKeys.length,
+      layout_en_keys: layoutKeys,
+      sent_keys_count: sentKeys.length,
+      missing_in_request_count: missingInRequest.length,
+      missing_in_request_sample: missingInRequest.slice(0, 40),
+      unknown_in_request_count: unknownInRequest.length,
+      unknown_in_request_sample: unknownInRequest.slice(0, 40),
+    });
+  }
+
+  // ✅ диагностика файлов (фон/печать/шрифт/лейаут)
   if (isDiag) {
     const listDir = (p) => {
       try {
@@ -118,6 +185,7 @@ export const handler = async (event) => {
         return { exists: false, error: String(e?.message || e) };
       }
     };
+
     const stat = (p) => {
       try {
         if (!p) return null;
@@ -140,35 +208,11 @@ export const handler = async (event) => {
         seal: stat(SEAL_PATH),
         font: stat(CYR_TTF_PATH),
       },
-      bg_candidates: [
-        path.join(PUBLIC_DIR, "bg_en_rf.jpg"),
-        path.join(PUBLIC_DIR, "bg_en_rf.jpeg"),
-        path.join(PUBLIC_DIR, "bg_en_rf.png"),
-      ],
       bg_picked: BG_PICKED,
-      note: "diag работает через POST ?diag=1",
     });
   }
 
-  // --- load layout positions ---
-  let FIELD_POS = {};
-  try {
-    const raw = fs.readFileSync(LAYOUT_PATH, "utf8");
-    const parsed = safeParsePositions(raw);
-    FIELD_POS =
-      parsed && parsed.pos && typeof parsed.pos === "object"
-        ? parsed.pos
-        : parsed && typeof parsed === "object"
-        ? parsed
-        : {};
-  } catch (e) {
-    return jsonResponse(500, {
-      error: "layout_load_failed",
-      message: String(e?.message || e),
-      expected_path: "/var/task/layout-positions.json",
-    });
-  }
-
+  // ---------- PDF ----------
   try {
     const pdfDoc = await PDFDocument.create();
     pdfDoc.registerFontkit(fontkit);
@@ -180,54 +224,28 @@ export const handler = async (event) => {
     const width = page.getWidth();
     const height = page.getHeight();
 
-    // ===== 1) BACKGROUND (как в server.mjs: contain + центрирование) =====
+    // ===== 1) BACKGROUND: строго на всю A4 (0,0,width,height) =====
     if (!BG_PICKED || !fs.existsSync(BG_PICKED)) {
       return jsonResponse(500, {
         error: "bg_not_found",
-        message: "Background not found in /public. Put bg_en_rf.jpg (or png) into /public and redeploy.",
+        message: "No background found in /public. Put bg_en_rf.jpg there and redeploy.",
       });
     }
 
-    let bgImg;
-    try {
-      const bgBytes = fs.readFileSync(BG_PICKED);
-      if (BG_PICKED.toLowerCase().endsWith(".png")) {
-        bgImg = await pdfDoc.embedPng(bgBytes);
-      } else {
-        bgImg = await pdfDoc.embedJpg(bgBytes);
-      }
-    } catch (e) {
-      return jsonResponse(500, {
-        error: "bg_embed_failed",
-        message: String(e?.message || e),
-        bg_path: BG_PICKED,
-        hint: "Если это JPEG в нестандартном формате — пересохрани как обычный JPG (baseline) и задеплой заново.",
-      });
-    }
+    const bgBytes = fs.readFileSync(BG_PICKED);
+    const bgImg = BG_PICKED.toLowerCase().endsWith(".png")
+      ? await pdfDoc.embedPng(bgBytes)
+      : await pdfDoc.embedJpg(bgBytes);
 
-    // contain (чтобы совпало с тем, как ты настраивал координаты)
-    const s = Math.min(width / bgImg.width, height / bgImg.height);
-    const dw = bgImg.width * s;
-    const dh = bgImg.height * s;
-    const dx = (width - dw) / 2;
-    const dy = (height - dh) / 2;
-    page.drawImage(bgImg, { x: dx, y: dy, width: dw, height: dh });
+    page.drawImage(bgImg, { x: 0, y: 0, width, height });
 
     // ===== 2) SEAL =====
     if (fs.existsSync(SEAL_PATH)) {
       const sealBytes = fs.readFileSync(SEAL_PATH);
-      let sealImg;
-      try {
-        sealImg = await pdfDoc.embedPng(sealBytes);
-      } catch {
-        sealImg = await pdfDoc.embedJpg(sealBytes);
-      }
+      const sealImg = await pdfDoc.embedPng(sealBytes);
 
-      const sealW_base = 200;
-      const sealH_base = 140;
-      const scale = 0.95;
-      const sealW = sealW_base * scale;
-      const sealH = sealH_base * scale;
+      const sealW = 190;
+      const sealH = 133;
       const dyUp = 20;
 
       page.drawImage(sealImg, {
@@ -250,156 +268,69 @@ export const handler = async (event) => {
       }
     }
 
-    // ===== DRAW HELPERS =====
+    // ===== offsets/scale =====
     const X_OFFSET = Number(process.env.PDF_X_OFFSET || 0.0);
     const Y_OFFSET = Number(process.env.PDF_Y_OFFSET || 0.014);
-
     const FONT_SCALE = Number(process.env.PDF_FONT_SCALE || 1.2);
     const BASE_SIZE = 12;
 
-    function fitSize(text, size, minSize = 8, maxWidth = Infinity, usedFont = fontEN) {
-      let s = size;
-      while (s > minSize) {
-        const w = usedFont.widthOfTextAtSize(text, s);
-        if (w <= maxWidth) break;
-        s -= 0.5;
-      }
-      return s;
-    }
+    function drawTextInBox(key, value) {
+      const cfg = FIELD_POS[key];
+      if (!cfg) return;
 
-    function drawInBox({ text, xLeft, y, boxW, align = "center", size, allowCyrillic = false }) {
-      const t = cleanText(text);
+      const t = cleanText(value);
       if (!t) return;
 
+      const leftRatio = percentToRatio(cfg.left, 0);
+      const topRatio = percentToRatio(cfg.top, 0);
+      const widthRatio = percentToRatio(cfg.width, 0.5);
+
+      const xLeft = (leftRatio + X_OFFSET) * width;
+      const boxW = widthRatio * width;
+      const yBase = height - (topRatio + Y_OFFSET) * height;
+
+      // шрифт
       const hasCyr = hasCyrillic(t);
-      if (hasCyr && !allowCyrillic) return;
+      const allowCyr = key === "en_series";
+      if (hasCyr && !allowCyr) return;
 
       const usedFont = hasCyr ? (fontCYR || fontEN) : fontEN;
-      const s = fitSize(t, size, 8, boxW, usedFont);
-      const tw = usedFont.widthOfTextAtSize(t, s);
 
-      let x = xLeft;
-      if (align === "center") x = xLeft + (boxW - tw) / 2;
-      if (align === "right") x = xLeft + (boxW - tw);
-      if (x < 0) x = 0;
+      // размер
+      let size = BASE_SIZE * FONT_SCALE;
+      if (key === "en_series") size *= 0.85; // как просил
 
-      page.drawText(t, { x, y, size: s, font: usedFont });
-    }
+      // перенос в 2 строки (универсально) если не влезло
+      const lines = wrapByWidth(t, usedFont, size, boxW);
+      const maxLines = 2;
 
-    function splitWords_5_8_9(text) {
-      const w = cleanText(text).split(/\s+/).filter(Boolean);
-      const l1 = w.slice(0, 5).join(" ");
-      const l2 = w.slice(5, 13).join(" ");
-      const l3 = w.slice(13, 22).join(" ");
-      return { l1, l2, l3 };
-    }
-
-    function drawRegplace_5_8_9(key, value) {
-      const cfg = FIELD_POS[key];
-      if (!cfg) return;
-
-      const leftRatio = percentToRatio(cfg.left, 0);
-      const topRatio = percentToRatio(cfg.top, 0);
-      const widthRatio = percentToRatio(cfg.width, 0.5);
-
-      const xLeft = (leftRatio + X_OFFSET) * width;
-      const boxW = widthRatio * width;
-      const yTop = height - (topRatio + Y_OFFSET) * height;
-
-      const size = BASE_SIZE * FONT_SCALE;
-      const { l1, l2, l3 } = splitWords_5_8_9(value);
-
-      const lineH = size * 1.22;
-      const gap23 = 2;
-
-      drawInBox({ text: l1, xLeft, y: yTop, boxW, align: "right", size });
-      drawInBox({ text: l2, xLeft, y: yTop - lineH, boxW, align: "right", size });
-      drawInBox({ text: l3, xLeft, y: yTop - lineH * 2 - gap23, boxW, align: "center", size });
-    }
-
-    function splitAfterWords(text, firstLineWords = 10) {
-      const words = String(text || "")
-        .replace(/\s+/g, " ")
-        .trim()
-        .split(" ")
-        .filter(Boolean);
-
-      if (words.length <= firstLineWords) return [words.join(" ")];
-      const line1 = words.slice(0, firstLineWords).join(" ");
-      const line2 = words.slice(firstLineWords).join(" ");
-      return [line1, line2];
-    }
-
-    function drawStamp2Lines(key, value) {
-      const cfg = FIELD_POS[key];
-      if (!cfg) return;
-
-      const leftRatio = percentToRatio(cfg.left, 0);
-      const topRatio = percentToRatio(cfg.top, 0);
-      const widthRatio = percentToRatio(cfg.width, 0.5);
-
-      const xLeft = (leftRatio + X_OFFSET) * width;
-      const boxW = widthRatio * width;
-      const yTop = height - (topRatio + Y_OFFSET) * height;
-
-      const normalSize = BASE_SIZE * FONT_SCALE;
-      const stampSize = Math.max(7, normalSize * 0.65);
-
-      const lines = splitAfterWords(value, 10);
-      const lineH = stampSize * 1.2;
-
-      drawInBox({ text: lines[0] || "", xLeft, y: yTop, boxW, align: "center", size: stampSize });
-      if (lines[1]) {
-        drawInBox({ text: lines[1], xLeft, y: yTop - lineH, boxW, align: "center", size: stampSize });
-      }
-    }
-
-    function drawField(key) {
-      const cfg = FIELD_POS[key];
-      if (!cfg) return;
-      if (key === "en_dob_words") return;
-
-      const value = cleanText(fields[key]);
-      if (!value) return;
-
-      const leftRatio = percentToRatio(cfg.left, 0);
-      const topRatio = percentToRatio(cfg.top, 0);
-      const widthRatio = percentToRatio(cfg.width, 0.5);
-
-      const xLeft = (leftRatio + X_OFFSET) * width;
-      const boxW = widthRatio * width;
-      const y = height - (topRatio + Y_OFFSET) * height;
-
-      let fontSize = BASE_SIZE * FONT_SCALE;
-
-      // серия/номер меньше только в PDF
-      if (key === "en_series") fontSize *= 0.85;
-
-      if (key === "en_regplace" || key === "en_regplace2") {
-        drawRegplace_5_8_9(key, value);
+      // если одна строка — рисуем по центру
+      if (lines.length <= 1) {
+        const tw = usedFont.widthOfTextAtSize(t, size);
+        const x = xLeft + Math.max(0, (boxW - tw) / 2);
+        page.drawText(t, { x, y: yBase, size, font: usedFont });
         return;
       }
 
-      if (key === "en_stamp_text") {
-        drawStamp2Lines(key, fields[key]);
-        return;
-      }
+      // две строки
+      const out = lines.slice(0, maxLines);
+      const lineH = size * 1.15;
 
-      drawInBox({
-        text: value,
-        xLeft,
-        y,
-        boxW,
-        align: "center",
-        size: fontSize,
-        allowCyrillic: key === "en_series",
-      });
+      for (let i = 0; i < out.length; i++) {
+        const line = out[i];
+        const tw = usedFont.widthOfTextAtSize(line, size);
+        const x = xLeft + Math.max(0, (boxW - tw) / 2);
+        page.drawText(line, { x, y: yBase - i * lineH, size, font: usedFont });
+      }
     }
 
-    // рисуем только en_*
-    const keys = Object.keys(fields).filter((k) => String(k).startsWith("en_"));
-    for (const key of keys) {
-      if (FIELD_POS[key]) drawField(key);
+    // ✅ главное изменение: рисуем по layout-positions, а не по присланным ключам
+    const layoutKeys = Object.keys(FIELD_POS).filter((k) => String(k).startsWith("en_"));
+
+    for (const key of layoutKeys) {
+      if (Object.prototype.hasOwnProperty.call(fields, key)) {
+        drawTextInBox(key, fields[key]);
+      }
     }
 
     const pdfBytes = await pdfDoc.save();
