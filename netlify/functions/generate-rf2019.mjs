@@ -2,10 +2,6 @@ import { PDFDocument, StandardFonts } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 function jsonResponse(statusCode, obj, extraHeaders = {}) {
   return {
@@ -14,7 +10,7 @@ function jsonResponse(statusCode, obj, extraHeaders = {}) {
       "Content-Type": "application/json; charset=utf-8",
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Headers": "Content-Type",
-      "Access-Control-Allow-Methods": "POST,OPTIONS",
+      "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
       ...extraHeaders,
     },
     body: JSON.stringify(obj),
@@ -39,7 +35,7 @@ function safeParsePositions(rawText) {
     } catch {}
   }
 
-  throw new Error("layout-positions.json parse failed");
+  throw new Error("layout-positions.json parse failed (invalid JSON/JS)");
 }
 
 function percentToRatio(str, def = 0) {
@@ -60,31 +56,96 @@ function hasCyrillic(s) {
   return /[А-ЯЁа-яё]/.test(String(s || ""));
 }
 
-// ✅ Умная загрузка файлов для Netlify
-function findFile(filename, possibleDirs) {
-  for (const dir of possibleDirs) {
-    const fullPath = path.join(dir, filename);
-    if (fs.existsSync(fullPath)) {
-      console.log(`✅ Found ${filename} at:`, fullPath);
-      return fullPath;
-    }
+function listDirSafe(p) {
+  try {
+    if (!fs.existsSync(p)) return { exists: false, items: [] };
+    return { exists: true, items: fs.readdirSync(p) };
+  } catch (e) {
+    return { exists: false, items: ["ERR: " + String(e?.message || e)] };
   }
-  console.warn(`⚠️ ${filename} NOT FOUND in any of:`, possibleDirs);
+}
+
+function statSafe(p) {
+  try {
+    if (!fs.existsSync(p)) return null;
+    const st = fs.statSync(p);
+    return { size: st.size, mtime: st.mtime?.toISOString?.() || String(st.mtime) };
+  } catch {
+    return null;
+  }
+}
+
+function pickFirstExisting(paths) {
+  for (const p of paths) {
+    try {
+      if (fs.existsSync(p)) return p;
+    } catch {}
+  }
   return null;
 }
 
 export const handler = async (event) => {
-  // CORS preflight
   if (event.httpMethod === "OPTIONS") {
     return {
       statusCode: 204,
       headers: {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Headers": "Content-Type",
-        "Access-Control-Allow-Methods": "POST,OPTIONS",
+        "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
       },
       body: "",
     };
+  }
+
+  // ✅ Жёсткие пути Netlify runtime
+  const ROOT = "/var/task";
+  const PUBLIC_DIR = path.join(ROOT, "public");
+
+  const LAYOUT_PATH = path.join(ROOT, "layout-positions.json");
+
+  // Ищем фон в нескольких местах (на случай, если ты держишь его в assets_rf2019)
+  const BG_CANDIDATES = [
+    path.join(PUBLIC_DIR, "bg_en_rf.jpg"),
+    path.join(PUBLIC_DIR, "bg_en_rf.jpeg"),
+    path.join(PUBLIC_DIR, "bg_en_rf.png"),
+    path.join(ROOT, "assets_rf2019", "bg_en_rf.jpg"),
+    path.join(ROOT, "assets_rf2019", "bg_en_rf.jpeg"),
+    path.join(ROOT, "assets_rf2019", "bg_en_rf.png"),
+  ];
+
+  const SEAL_CANDIDATES = [
+    path.join(PUBLIC_DIR, "seal.png"),
+    path.join(ROOT, "assets_rf2019", "seal.png"),
+  ];
+
+  const CYR_TTF_CANDIDATES = [
+    path.join(ROOT, "fonts", "DejaVuSerif.ttf"),
+    path.join(ROOT, "fonts", "DejaVuSerif-Bold.ttf"),
+  ];
+
+  const BG_PATH = pickFirstExisting(BG_CANDIDATES);
+  const SEAL_PATH = pickFirstExisting(SEAL_CANDIDATES);
+  const CYR_TTF_PATH = pickFirstExisting(CYR_TTF_CANDIDATES);
+
+  // ✅ DIAG режим: GET или POST с ?diag=1 вернёт что реально есть в /var/task
+  const qs = event.queryStringParameters || {};
+  const wantDiag = event.httpMethod === "GET" || String(qs.diag || "") === "1";
+
+  if (wantDiag) {
+    return jsonResponse(200, {
+      cwd: process.cwd(),
+      ROOT,
+      PUBLIC_DIR,
+      root_list: listDirSafe(ROOT),
+      public_list: listDirSafe(PUBLIC_DIR),
+      assets_list: listDirSafe(path.join(ROOT, "assets_rf2019")),
+      fonts_list: listDirSafe(path.join(ROOT, "fonts")),
+      layout: { path: LAYOUT_PATH, stat: statSafe(LAYOUT_PATH) },
+      bg: { picked: BG_PATH, candidates: BG_CANDIDATES.map((p) => ({ p, stat: statSafe(p) })) },
+      seal: { picked: SEAL_PATH, candidates: SEAL_CANDIDATES.map((p) => ({ p, stat: statSafe(p) })) },
+      font: { picked: CYR_TTF_PATH, candidates: CYR_TTF_CANDIDATES.map((p) => ({ p, stat: statSafe(p) })) },
+      note: "Если BG_PATH = null или stat = null — значит файл не попал в бандл функции. Тогда нужен netlify.toml included_files.",
+    });
   }
 
   if (event.httpMethod !== "POST") {
@@ -101,43 +162,7 @@ export const handler = async (event) => {
   const fields =
     payload.fields && typeof payload.fields === "object" ? payload.fields : {};
 
-  // ✅ ПОИСК ФАЙЛОВ В РАЗНЫХ МЕСТАХ (Netlify может менять структуру)
-  const possibleRoots = [
-    "/var/task",
-    path.resolve(__dirname, "../.."), // netlify/functions -> root
-    path.resolve(__dirname, "../../.."),
-    process.cwd(),
-  ];
-
-  const possiblePublicDirs = possibleRoots.flatMap(root => [
-    path.join(root, "public"),
-    path.join(root, "dist"),
-    path.join(root, "assets"),
-  ]);
-
-  const possibleFontDirs = possibleRoots.map(root => path.join(root, "fonts"));
-
-  console.log("🔍 Searching in roots:", possibleRoots);
-
-  // --- LAYOUT POSITIONS ---
-  let LAYOUT_PATH = null;
-  for (const root of possibleRoots) {
-    const candidate = path.join(root, "layout-positions.json");
-    if (fs.existsSync(candidate)) {
-      LAYOUT_PATH = candidate;
-      break;
-    }
-  }
-
-  if (!LAYOUT_PATH) {
-    return jsonResponse(500, {
-      error: "layout_not_found",
-      searched: possibleRoots.map(r => path.join(r, "layout-positions.json")),
-      cwd: process.cwd(),
-      __dirname,
-    });
-  }
-
+  // --- load layout positions ---
   let FIELD_POS = {};
   try {
     const raw = fs.readFileSync(LAYOUT_PATH, "utf8");
@@ -148,23 +173,17 @@ export const handler = async (event) => {
         : parsed && typeof parsed === "object"
         ? parsed
         : {};
-    
-    console.log("✅ Loaded positions:", Object.keys(FIELD_POS).length, "fields");
   } catch (e) {
     return jsonResponse(500, {
-      error: "layout_parse_failed",
+      error: "layout_load_failed",
       message: String(e?.message || e),
+      expected_path: "/var/task/layout-positions.json",
+      debug: {
+        layout_exists: fs.existsSync(LAYOUT_PATH),
+        root_list: listDirSafe(ROOT),
+      },
     });
   }
-
-  // --- FIND FILES ---
-  // ✅ Ищем bg_en_rf.jpg И bg_en_rf.png (на случай если формат изменился)
-  const BG_PATH = 
-    findFile("bg_en_rf.jpg", possiblePublicDirs) ||
-    findFile("bg_en_rf.png", possiblePublicDirs);
-  
-  const SEAL_PATH = findFile("seal.png", possiblePublicDirs);
-  const CYR_TTF_PATH = findFile("DejaVuSerif.ttf", possibleFontDirs);
 
   try {
     const pdfDoc = await PDFDocument.create();
@@ -177,53 +196,34 @@ export const handler = async (event) => {
     const width = page.getWidth();
     const height = page.getHeight();
 
-    // ===== 1) BACKGROUND =====
-    if (BG_PATH && fs.existsSync(BG_PATH)) {
-      const bgBytes = fs.readFileSync(BG_PATH);
-
-      let bgImg;
+    // ===== 1) BACKGROUND (строго на A4) =====
+    let bgOk = false;
+    if (BG_PATH) {
       try {
-        // ✅ пробуем JPG первым
-        bgImg = await pdfDoc.embedJpg(bgBytes);
-      } catch {
-        // если не JPG — пробуем PNG
-        try {
-          bgImg = await pdfDoc.embedPng(bgBytes);
-        } catch (e) {
-          console.warn("⚠️ Failed to embed background:", e.message);
-          bgImg = null;
-        }
-      }
-
-      if (bgImg) {
-        // ✅ ВАЖНО: заполняем весь A4 (stretch)
-        page.drawImage(bgImg, { 
-          x: 0, 
-          y: 0, 
-          width: A4_W, 
-          height: A4_H 
-        });
-        console.log("✅ Background drawn (stretched to A4)");
+        const bgBytes = fs.readFileSync(BG_PATH);
+        const isJpg = /\.(jpe?g)$/i.test(BG_PATH);
+        const bgImg = isJpg ? await pdfDoc.embedJpg(bgBytes) : await pdfDoc.embedPng(bgBytes);
+        page.drawImage(bgImg, { x: 0, y: 0, width, height });
+        bgOk = true;
+      } catch (e) {
+        bgOk = false;
+        page.drawText("BG LOAD FAILED", { x: 20, y: height - 20, size: 10, font: await pdfDoc.embedFont(StandardFonts.Helvetica) });
       }
     } else {
-      console.warn("⚠️ Background not found!");
+      page.drawText("BG NOT FOUND", { x: 20, y: height - 20, size: 10, font: await pdfDoc.embedFont(StandardFonts.Helvetica) });
     }
 
     // ===== 2) SEAL =====
-    if (SEAL_PATH && fs.existsSync(SEAL_PATH)) {
-      const sealBytes = fs.readFileSync(SEAL_PATH);
-      let sealImg;
+    if (SEAL_PATH) {
       try {
-        sealImg = await pdfDoc.embedPng(sealBytes);
-      } catch {
+        const sealBytes = fs.readFileSync(SEAL_PATH);
+        let sealImg;
         try {
-          sealImg = await pdfDoc.embedJpg(sealBytes);
+          sealImg = await pdfDoc.embedPng(sealBytes);
         } catch {
-          sealImg = null;
+          sealImg = await pdfDoc.embedJpg(sealBytes);
         }
-      }
 
-      if (sealImg) {
         const sealW_base = 200;
         const sealH_base = 140;
         const scale = 0.95;
@@ -237,27 +237,26 @@ export const handler = async (event) => {
           width: sealW,
           height: sealH,
         });
-        console.log("✅ Seal drawn");
-      }
+      } catch {}
     }
 
     // ===== 3) FONTS =====
     const fontEN = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
 
     let fontCYR = null;
-    if (CYR_TTF_PATH && fs.existsSync(CYR_TTF_PATH)) {
+    if (CYR_TTF_PATH) {
       try {
         fontCYR = await pdfDoc.embedFont(fs.readFileSync(CYR_TTF_PATH));
-        console.log("✅ Cyrillic font loaded");
-      } catch (e) {
-        console.warn("⚠️ Cyrillic font failed:", e.message);
+      } catch {
+        fontCYR = null;
       }
     }
 
-    // ===== DRAW HELPERS =====
-    const X_OFFSET = 0.0;
-    const Y_OFFSET = 0.014;
-    const FONT_SCALE = 1.2;
+    // ===== OFFSETS (убрали магию 0.014) =====
+    const X_OFFSET = Number(process.env.PDF_X_OFFSET || 0);
+    const Y_OFFSET = Number(process.env.PDF_Y_OFFSET || 0);
+
+    const FONT_SCALE = Number(process.env.PDF_FONT_SCALE || 1.2);
     const BASE_SIZE = 12;
 
     function fitSize(text, size, minSize = 8, maxWidth = Infinity, usedFont = fontEN) {
@@ -278,6 +277,7 @@ export const handler = async (event) => {
       if (hasCyr && !allowCyrillic) return;
 
       const usedFont = hasCyr ? (fontCYR || fontEN) : fontEN;
+
       const s = fitSize(t, size, 8, boxW, usedFont);
       const tw = usedFont.widthOfTextAtSize(t, s);
 
@@ -307,6 +307,7 @@ export const handler = async (event) => {
 
       const xLeft = (leftRatio + X_OFFSET) * width;
       const boxW = widthRatio * width;
+
       const yTop = height - (topRatio + Y_OFFSET) * height;
 
       const size = BASE_SIZE * FONT_SCALE;
@@ -344,6 +345,7 @@ export const handler = async (event) => {
 
       const xLeft = (leftRatio + X_OFFSET) * width;
       const boxW = widthRatio * width;
+
       const yTop = height - (topRatio + Y_OFFSET) * height;
 
       const normalSize = BASE_SIZE * FONT_SCALE;
@@ -403,10 +405,7 @@ export const handler = async (event) => {
       });
     }
 
-    // Рисуем только en_*
     const keys = Object.keys(fields).filter((k) => String(k).startsWith("en_"));
-    console.log("📝 Drawing", keys.length, "fields");
-    
     for (const key of keys) {
       if (FIELD_POS[key]) drawField(key);
     }
@@ -417,18 +416,13 @@ export const handler = async (event) => {
       statusCode: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": 'attachment; filename="birth_certificate_translation.pdf"',
+        "Content-Disposition": 'attachment; filename="rf2019_translation.pdf"',
         "Access-Control-Allow-Origin": "*",
       },
       body: Buffer.from(pdfBytes).toString("base64"),
       isBase64Encoded: true,
     };
   } catch (e) {
-    console.error("PDF generation failed:", e);
-    return jsonResponse(500, { 
-      error: "pdf_failed", 
-      message: String(e?.message || e),
-      stack: e?.stack 
-    });
+    return jsonResponse(500, { error: "pdf_failed", message: String(e?.message || e) });
   }
 };
