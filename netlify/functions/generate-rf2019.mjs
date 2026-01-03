@@ -2,6 +2,10 @@ import { PDFDocument, StandardFonts } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 function jsonResponse(statusCode, obj, extraHeaders = {}) {
   return {
@@ -35,7 +39,7 @@ function safeParsePositions(rawText) {
     } catch {}
   }
 
-  throw new Error("layout-positions.json parse failed (invalid JSON/JS)");
+  throw new Error("layout-positions.json parse failed");
 }
 
 function percentToRatio(str, def = 0) {
@@ -54,6 +58,19 @@ function cleanText(v) {
 
 function hasCyrillic(s) {
   return /[А-ЯЁа-яё]/.test(String(s || ""));
+}
+
+// ✅ Умная загрузка файлов для Netlify
+function findFile(filename, possibleDirs) {
+  for (const dir of possibleDirs) {
+    const fullPath = path.join(dir, filename);
+    if (fs.existsSync(fullPath)) {
+      console.log(`✅ Found ${filename} at:`, fullPath);
+      return fullPath;
+    }
+  }
+  console.warn(`⚠️ ${filename} NOT FOUND in any of:`, possibleDirs);
+  return null;
 }
 
 export const handler = async (event) => {
@@ -81,19 +98,46 @@ export const handler = async (event) => {
     return jsonResponse(400, { error: "bad_json" });
   }
 
-  // ожидаем: { fields: {...} }
   const fields =
     payload.fields && typeof payload.fields === "object" ? payload.fields : {};
 
-  // ✅ ЖЁСТКИЕ ПУТИ ДЛЯ NETLIFY FUNCTIONS
-  const ROOT = "/var/task";
-  const PUBLIC_DIR = "/var/task/public";
-  const LAYOUT_PATH = "/var/task/layout-positions.json";
-  const BG_PATH = "/var/task/public/bg_en_rf.jpg"; // ✅ JPG
-  const SEAL_PATH = "/var/task/public/seal.png";
-  const CYR_TTF_PATH = "/var/task/fonts/DejaVuSerif.ttf";
+  // ✅ ПОИСК ФАЙЛОВ В РАЗНЫХ МЕСТАХ (Netlify может менять структуру)
+  const possibleRoots = [
+    "/var/task",
+    path.resolve(__dirname, "../.."), // netlify/functions -> root
+    path.resolve(__dirname, "../../.."),
+    process.cwd(),
+  ];
 
-  // --- load layout positions ---
+  const possiblePublicDirs = possibleRoots.flatMap(root => [
+    path.join(root, "public"),
+    path.join(root, "dist"),
+    path.join(root, "assets"),
+  ]);
+
+  const possibleFontDirs = possibleRoots.map(root => path.join(root, "fonts"));
+
+  console.log("🔍 Searching in roots:", possibleRoots);
+
+  // --- LAYOUT POSITIONS ---
+  let LAYOUT_PATH = null;
+  for (const root of possibleRoots) {
+    const candidate = path.join(root, "layout-positions.json");
+    if (fs.existsSync(candidate)) {
+      LAYOUT_PATH = candidate;
+      break;
+    }
+  }
+
+  if (!LAYOUT_PATH) {
+    return jsonResponse(500, {
+      error: "layout_not_found",
+      searched: possibleRoots.map(r => path.join(r, "layout-positions.json")),
+      cwd: process.cwd(),
+      __dirname,
+    });
+  }
+
   let FIELD_POS = {};
   try {
     const raw = fs.readFileSync(LAYOUT_PATH, "utf8");
@@ -104,24 +148,23 @@ export const handler = async (event) => {
         : parsed && typeof parsed === "object"
         ? parsed
         : {};
+    
+    console.log("✅ Loaded positions:", Object.keys(FIELD_POS).length, "fields");
   } catch (e) {
     return jsonResponse(500, {
-      error: "layout_load_failed",
+      error: "layout_parse_failed",
       message: String(e?.message || e),
-      expected_path: "layout-positions.json in repo root (packed into /var/task)",
-      debug: {
-        LAYOUT_PATH,
-        exists: fs.existsSync(LAYOUT_PATH),
-        root_list: (() => {
-          try {
-            return fs.readdirSync(ROOT);
-          } catch (err) {
-            return ["ERR: " + String(err?.message || err)];
-          }
-        })(),
-      },
     });
   }
+
+  // --- FIND FILES ---
+  // ✅ Ищем bg_en_rf.jpg И bg_en_rf.png (на случай если формат изменился)
+  const BG_PATH = 
+    findFile("bg_en_rf.jpg", possiblePublicDirs) ||
+    findFile("bg_en_rf.png", possiblePublicDirs);
+  
+  const SEAL_PATH = findFile("seal.png", possiblePublicDirs);
+  const CYR_TTF_PATH = findFile("DejaVuSerif.ttf", possibleFontDirs);
 
   try {
     const pdfDoc = await PDFDocument.create();
@@ -135,62 +178,85 @@ export const handler = async (event) => {
     const height = page.getHeight();
 
     // ===== 1) BACKGROUND =====
-    // ✅ ВАЖНО: рисуем фон строго НА ВЕСЬ A4, иначе поля "едут"
-    if (fs.existsSync(BG_PATH)) {
+    if (BG_PATH && fs.existsSync(BG_PATH)) {
       const bgBytes = fs.readFileSync(BG_PATH);
 
-      // ✅ это JPG => embedJpg
-      const bgImg = await pdfDoc.embedJpg(bgBytes);
+      let bgImg;
+      try {
+        // ✅ пробуем JPG первым
+        bgImg = await pdfDoc.embedJpg(bgBytes);
+      } catch {
+        // если не JPG — пробуем PNG
+        try {
+          bgImg = await pdfDoc.embedPng(bgBytes);
+        } catch (e) {
+          console.warn("⚠️ Failed to embed background:", e.message);
+          bgImg = null;
+        }
+      }
 
-      // ✅ stretch to full page
-      page.drawImage(bgImg, { x: 0, y: 0, width, height });
+      if (bgImg) {
+        // ✅ ВАЖНО: заполняем весь A4 (stretch)
+        page.drawImage(bgImg, { 
+          x: 0, 
+          y: 0, 
+          width: A4_W, 
+          height: A4_H 
+        });
+        console.log("✅ Background drawn (stretched to A4)");
+      }
     } else {
-      console.warn("BG NOT FOUND:", BG_PATH);
-      console.warn("PUBLIC_DIR list:", fs.existsSync(PUBLIC_DIR) ? fs.readdirSync(PUBLIC_DIR) : "NO_PUBLIC_DIR");
+      console.warn("⚠️ Background not found!");
     }
 
     // ===== 2) SEAL =====
-    if (fs.existsSync(SEAL_PATH)) {
+    if (SEAL_PATH && fs.existsSync(SEAL_PATH)) {
       const sealBytes = fs.readFileSync(SEAL_PATH);
       let sealImg;
       try {
         sealImg = await pdfDoc.embedPng(sealBytes);
       } catch {
-        sealImg = await pdfDoc.embedJpg(sealBytes);
+        try {
+          sealImg = await pdfDoc.embedJpg(sealBytes);
+        } catch {
+          sealImg = null;
+        }
       }
 
-      const sealW_base = 200;
-      const sealH_base = 140;
-      const scale = 0.95;
-      const sealW = sealW_base * scale;
-      const sealH = sealH_base * scale;
-      const dyUp = 20;
+      if (sealImg) {
+        const sealW_base = 200;
+        const sealH_base = 140;
+        const scale = 0.95;
+        const sealW = sealW_base * scale;
+        const sealH = sealH_base * scale;
+        const dyUp = 20;
 
-      page.drawImage(sealImg, {
-        x: width - sealW - 40,
-        y: height - sealH - 40 + dyUp,
-        width: sealW,
-        height: sealH,
-      });
+        page.drawImage(sealImg, {
+          x: width - sealW - 40,
+          y: height - sealH - 40 + dyUp,
+          width: sealW,
+          height: sealH,
+        });
+        console.log("✅ Seal drawn");
+      }
     }
 
     // ===== 3) FONTS =====
     const fontEN = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
 
     let fontCYR = null;
-    if (fs.existsSync(CYR_TTF_PATH)) {
+    if (CYR_TTF_PATH && fs.existsSync(CYR_TTF_PATH)) {
       try {
         fontCYR = await pdfDoc.embedFont(fs.readFileSync(CYR_TTF_PATH));
-      } catch {
-        fontCYR = null;
+        console.log("✅ Cyrillic font loaded");
+      } catch (e) {
+        console.warn("⚠️ Cyrillic font failed:", e.message);
       }
     }
 
     // ===== DRAW HELPERS =====
-    // ⚠️ эти оффсеты остаются как у тебя; теперь после правильного фона смещения обычно пропадают
     const X_OFFSET = 0.0;
     const Y_OFFSET = 0.014;
-
     const FONT_SCALE = 1.2;
     const BASE_SIZE = 12;
 
@@ -212,7 +278,6 @@ export const handler = async (event) => {
       if (hasCyr && !allowCyrillic) return;
 
       const usedFont = hasCyr ? (fontCYR || fontEN) : fontEN;
-
       const s = fitSize(t, size, 8, boxW, usedFont);
       const tw = usedFont.widthOfTextAtSize(t, s);
 
@@ -242,7 +307,6 @@ export const handler = async (event) => {
 
       const xLeft = (leftRatio + X_OFFSET) * width;
       const boxW = widthRatio * width;
-
       const yTop = height - (topRatio + Y_OFFSET) * height;
 
       const size = BASE_SIZE * FONT_SCALE;
@@ -280,7 +344,6 @@ export const handler = async (event) => {
 
       const xLeft = (leftRatio + X_OFFSET) * width;
       const boxW = widthRatio * width;
-
       const yTop = height - (topRatio + Y_OFFSET) * height;
 
       const normalSize = BASE_SIZE * FONT_SCALE;
@@ -315,7 +378,6 @@ export const handler = async (event) => {
 
       let fontSize = BASE_SIZE * FONT_SCALE;
 
-      // ✅ только PDF: серия/номер меньше
       if (key === "en_series") {
         fontSize = fontSize * 0.85;
       }
@@ -341,8 +403,10 @@ export const handler = async (event) => {
       });
     }
 
-    // рисуем только en_*
+    // Рисуем только en_*
     const keys = Object.keys(fields).filter((k) => String(k).startsWith("en_"));
+    console.log("📝 Drawing", keys.length, "fields");
+    
     for (const key of keys) {
       if (FIELD_POS[key]) drawField(key);
     }
@@ -353,13 +417,18 @@ export const handler = async (event) => {
       statusCode: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": 'attachment; filename="rf2019_translation.pdf"',
+        "Content-Disposition": 'attachment; filename="birth_certificate_translation.pdf"',
         "Access-Control-Allow-Origin": "*",
       },
       body: Buffer.from(pdfBytes).toString("base64"),
       isBase64Encoded: true,
     };
   } catch (e) {
-    return jsonResponse(500, { error: "pdf_failed", message: String(e?.message || e) });
+    console.error("PDF generation failed:", e);
+    return jsonResponse(500, { 
+      error: "pdf_failed", 
+      message: String(e?.message || e),
+      stack: e?.stack 
+    });
   }
 };
