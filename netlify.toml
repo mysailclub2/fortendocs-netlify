@@ -1,3 +1,11 @@
 [build]
   publish = "public"
   functions = "netlify/functions"
+
+[functions]
+  included_files = [
+    "layout-positions.json",
+    "public/bg_en_rf.png",
+    "public/seal.png",
+    "fonts/**"
+  ]
