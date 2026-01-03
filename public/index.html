@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>FortenDocs — выбор бланка</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: #0f172a;
+      --bg-card: #020617;
+      --accent: #22c55e;
+      --accent-soft: rgba(34, 197, 94, 0.15);
+      --text-main: #e5e7eb;
+      --text-muted: #9ca3af;
+      --border-subtle: rgba(148, 163, 184, 0.25);
+      --radius-lg: 18px;
+      --radius-full: 999px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      background: radial-gradient(circle at top, #334155 0%, #1e293b 40%, #0f172a 100%);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .page {
+      width: 100%;
+      max-width: 1080px;
+      margin: auto;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      width: 40px;
+      height: 40px;
+      border-radius: 14px;
+      background: radial-gradient(circle at 30% 10%, #4ade80, #16a34a 45%, #0f766e 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 16px 40px rgba(34, 197, 94, 0.4);
+      font-weight: 700;
+      font-size: 18px;
+    }
+
+    .brand-text-title {
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    .badge-mode {
+      padding: 6px 14px;
+      border-radius: var(--radius-full);
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: linear-gradient(135deg, rgba(15, 23, 42, 0.7), rgba(2, 6, 23, 0.9));
+    }
+
+    .badge-mode-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: #22c55e;
+      box-shadow: 0 0 8px rgba(34, 197, 94, 0.9);
+    }
+
+    .hero-subline {
+      width: 100%;
+      text-align: center;
+      margin-bottom: 18px;
+    }
+
+    .hero-main {
+      font-size: 24px;
+      font-weight: 700;
+      color: #ffffff;
+    }
+
+    .hero-sub {
+      font-size: 14px;
+      color: #cbd5e1;
+      margin-top: 6px;
+    }
+
+    main {
+      background: radial-gradient(circle at top left, #020617 0, #020617 45%, #000 100%);
+      border-radius: 24px;
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      padding: 20px 20px 24px;
+      box-shadow: 0 24px 80px rgba(15, 23, 42, 0.9);
+    }
+
+    .intro {
+      margin-bottom: 20px;
+    }
+
+    .intro-title {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .intro-sub {
+      font-size: 13px;
+      color: var(--text-muted);
+      max-width: 620px;
+    }
+
+    .grid-doc-groups {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+    }
+
+    .doc-group {
+      background: linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.07));
+      border-radius: var(--radius-lg);
+      border: 1px solid rgba(255,255,255,0.25);
+      padding: 18px 18px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      backdrop-filter: blur(6px);
+      box-shadow: 0 10px 35px rgba(0,0,0,0.4);
+    }
+
+    .doc-group-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .doc-group-title {
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    .doc-group-tag {
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .doc-group-badge {
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: var(--radius-full);
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      color: var(--text-muted);
+    }
+
+    .variants {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 2px;
+    }
+
+    .variant-btn {
+      width: 100%;
+      border-radius: 14px;
+      border: 1px solid rgba(0,0,0,0.2);
+      background: rgba(255,255,255,0.18);
+      padding: 14px 14px;
+      text-align: left;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      transition: 0.15s ease-out;
+      color: #fff;
+      font-size: 14px;
+      backdrop-filter: blur(4px);
+    }
+
+    .variant-btn:hover {
+      border-color: #22c55e;
+      background: rgba(34, 197, 94, 0.25);
+      box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.5);
+      transform: translateY(-2px);
+    }
+
+    .variant-main {
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .variant-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .variant-meta {
+      margin-top: 4px;
+      font-size: 10px;
+      color: #a3e635;
+    }
+
+    .variant-meta-barcode {
+      color: #eab308;
+    }
+
+    .variant-icon {
+      font-size: 16px;
+      opacity: 0.8;
+      margin-right: 4px;
+    }
+
+    .footer-note {
+      margin-top: 16px;
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+      border-top: 1px dashed rgba(148, 163, 184, 0.3);
+      padding-top: 10px;
+    }
+
+    .footer-note span strong {
+      font-weight: 500;
+      color: var(--accent);
+    }
+
+    @media (max-width: 640px) {
+      main { padding: 16px; }
+      header { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <div class="brand">
+        <div class="brand-logo">F</div>
+        <div>
+          <div class="brand-text-title">FortenDocs</div>
+        </div>
+      </div>
+      <div class="badge-mode">
+        <span class="badge-mode-dot"></span>
+        <span>Режим: выбор документа</span>
+      </div>
+    </header>
+
+    <div class="hero-subline">
+      <div class="hero-main">Перевод российских документов</div>
+      <div class="hero-sub">Свидетельства, паспорта, браки, разводы, смерти</div>
+    </div>
+
+    <main>
+      <section class="intro">
+        <div class="intro-title">Выберите тип документа и период бланка</div>
+        <div class="intro-sub">
+          Сначала выберите, какое свидетельство необходимо, затем — период выпуска бланка.
+          Мы подберём точный макет (фон, расположение полей, штрих- или QR-код).
+        </div>
+      </section>
+
+      <section class="grid-doc-groups">
+        <!-- Свидетельство о рождении -->
+        <article class="doc-group">
+          <div class="doc-group-header">
+            <div>
+              <div class="doc-group-title">Свидетельство о рождении</div>
+              <div class="doc-group-tag">РФ / СССР</div>
+            </div>
+            <div class="doc-group-badge">3 вида бланков</div>
+          </div>
+          <div class="variants">
+            <button class="variant-btn" onclick="goToTemplate('birth_ussr')">
+              <span class="variant-main"><span class="variant-icon">📜</span>До 1995 года (СССР / ранняя РФ)</span>
+              <span class="variant-sub">Зелёный/розовый советский образец и похожие старые бланки.</span>
+              <span class="variant-meta">Шаблон: birth_ussr</span>
+            </button>
+
+            <button class="variant-btn" onclick="goToTemplate('birth_1995_2019')">
+              <span class="variant-main"><span class="variant-icon">📄</span>С 1995 по 2019 год</span>
+              <span class="variant-sub">Стандартный бланк РФ без QR-кода.</span>
+              <span class="variant-meta">Шаблон: birth_1995_2019</span>
+            </button>
+
+            <button class="variant-btn" onclick="goToTemplate('birth_2019_qr')">
+              <span class="variant-main"><span class="variant-icon">🏷️</span>После 2019 года (с QR-кодом)</span>
+              <span class="variant-sub">Новый формат российского СОР с QR-кодом.</span>
+              <span class="variant-meta variant-meta-barcode">Шаблон: birth_2019_qr</span>
+            </button>
+          </div>
+        </article>
+
+        <!-- Свидетельство о браке -->
+        <article class="doc-group">
+          <div class="doc-group-header">
+            <div>
+              <div class="doc-group-title">Свидетельство о браке</div>
+              <div class="doc-group-tag">РФ / СССР</div>
+            </div>
+            <div class="doc-group-badge">3 вида бланков</div>
+          </div>
+          <div class="variants">
+            <button class="variant-btn" onclick="goToTemplate('marriage_pre1995')">
+              <span class="variant-main"><span class="variant-icon">💍</span>До 1995 года</span>
+              <span class="variant-sub">Старый образец, оформление советского/раннего периода.</span>
+              <span class="variant-meta">Шаблон: marriage_pre1995</span>
+            </button>
+
+            <button class="variant-btn" onclick="goToTemplate('marriage_1995_2018')">
+              <span class="variant-main"><span class="variant-icon">📄</span>С 1995 по 2018 год</span>
+              <span class="variant-sub">Классический российский бланк без QR-кода.</span>
+              <span class="variant-meta">Шаблон: marriage_1995_2018</span>
+            </button>
+
+            <button class="variant-btn" onclick="goToTemplate('marriage_2018_qr')">
+              <span class="variant-main"><span class="variant-icon">🔗</span>После 2018 года (с QR-кодом)</span>
+              <span class="variant-sub">Новый формат с QR-кодом на бланке.</span>
+              <span class="variant-meta variant-meta-barcode">Шаблон: marriage_2018_qr</span>
+            </button>
+          </div>
+        </article>
+
+        <!-- Свидетельство о разводе -->
+        <article class="doc-group">
+          <div class="doc-group-header">
+            <div>
+              <div class="doc-group-title">Свидетельство о разводе</div>
+              <div class="doc-group-tag">РФ / СССР</div>
+            </div>
+            <div class="doc-group-badge">3 вида бланков</div>
+          </div>
+          <div class="variants">
+            <button class="variant-btn" onclick="goToTemplate('divorce_pre1995')">
+              <span class="variant-main"><span class="variant-icon">✂️</span>До 1995 года</span>
+              <span class="variant-sub">Старые формы РАГС/ЗАГС.</span>
+              <span class="variant-meta">Шаблон: divorce_pre1995</span>
+            </button>
+
+            <button class="variant-btn" onclick="goToTemplate('divorce_1995_2018')">
+              <span class="variant-main"><span class="variant-icon">📄</span>С 1995 по 2018 год</span>
+              <span class="variant-sub">Образец РФ до введения QR-кодов.</span>
+              <span class="variant-meta">Шаблон: divorce_1995_2018</span>
+            </button>
+
+            <button class="variant-btn" onclick="goToTemplate('divorce_2018_qr')">
+              <span class="variant-main"><span class="variant-icon">🔗</span>После 2018 года (с QR-кодом)</span>
+              <span class="variant-sub">Актуальный бланк с QR-кодом.</span>
+              <span class="variant-meta variant-meta-barcode">Шаблон: divorce_2018_qr</span>
+            </button>
+          </div>
+        </article>
+
+        <!-- Свидетельство о смерти -->
+        <article class="doc-group">
+          <div class="doc-group-header">
+            <div>
+              <div class="doc-group-title">Свидетельство о смерти</div>
+              <div class="doc-group-tag">РФ / СССР</div>
+            </div>
+            <div class="doc-group-badge">3 вида бланков</div>
+          </div>
+          <div class="variants">
+            <button class="variant-btn" onclick="goToTemplate('death_pre1995')">
+              <span class="variant-main"><span class="variant-icon">🕊️</span>До 1995 года</span>
+              <span class="variant-sub">Старый формат свидетельства о смерти.</span>
+              <span class="variant-meta">Шаблон: death_pre1995</span>
+            </button>
+
+            <button class="variant-btn" onclick="goToTemplate('death_1995_2018')">
+              <span class="variant-main"><span class="variant-icon">📄</span>С 1995 по 2018 год</span>
+              <span class="variant-sub">Стандартный российский бланк.</span>
+              <span class="variant-meta">Шаблон: death_1995_2018</span>
+            </button>
+
+            <button class="variant-btn" onclick="goToTemplate('death_2018_qr')">
+              <span class="variant-main"><span class="variant-icon">🔗</span>После 2018 года (с QR-кодом)</span>
+              <span class="variant-sub">Современный бланк с QR-кодом.</span>
+              <span class="variant-meta variant-meta-barcode">Шаблон: death_2018_qr</span>
+            </button>
+          </div>
+        </article>
+
+        <!-- Паспорт РФ -->
+        <article class="doc-group">
+          <div class="doc-group-header">
+            <div>
+              <div class="doc-group-title">Паспорт гражданина РФ</div>
+              <div class="doc-group-tag">внутренний паспорт</div>
+            </div>
+            <div class="doc-group-badge">перевод паспорта</div>
+          </div>
+          <div class="variants">
+            <button class="variant-btn" onclick="goToTemplate('passport_rf_main')">
+              <span class="variant-main"><span class="variant-icon">🪪</span>Основные страницы (разворот + прописка)</span>
+              <span class="variant-sub">Стандартный пакет: разворот с фото и страница с регистрацией.</span>
+              <span class="variant-meta">Шаблон: passport_rf_main</span>
+            </button>
+
+            <button class="variant-btn" onclick="goToTemplate('passport_rf_full')">
+              <span class="variant-main"><span class="variant-icon">📘</span>Полный перевод паспорта</span>
+              <span class="variant-sub">Все заполненные страницы: визы, штампы, регистрации, отметки.</span>
+              <span class="variant-meta">Шаблон: passport_rf_full</span>
+            </button>
+          </div>
+        </article>
+      </section>
+
+      <div class="footer-note">
+        <span>Шаг 1: <strong>выберите точный бланк</strong>. Шаг 2: FortenDocs откроет форму заполнения и перевод.</span>
+        <span>Макеты используются для подготовки перевода и не заменяют оригиналы ЗАГС.</span>
+      </div>
+    </main>
+  </div>
+
+  <script>
+  function goToTemplate(templateId) {
+    // пока у нас реально готовы только 3 формы рождения:
+    const map = {
+      birth_ussr: "/ussr/",
+      birth_1995_2019: "/rf1995/",
+      birth_2019_qr: "/rf2019/",
+    };
+
+    const url = map[templateId];
+
+    if (url) {
+      window.location.href = url;
+      return;
+    }
+
+    // все остальные шаблоны пока не готовы — не уводим на 404
+    alert("Этот шаблон пока не подключён. Сейчас доступны только 3 бланка свидетельства о рождении.");
+  }
+</script>
+
+</body>
+</html>

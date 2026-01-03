@@ -1,0 +1,1351 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>FortenDocs — редактор свидетельства</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    body{background:#0f172a;color:#0f172a;min-height:100vh;display:flex;justify-content:center;padding:24px}
+    .page{width:100%;max-width:1200px;margin:auto;color:#0f172a}
+    header{margin-bottom:12px}
+    .wrap{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;background:#0b1220;color:#e5e7eb;padding:12px 16px;border-radius:14px;border:1px solid rgba(148,163,184,.4);box-shadow:0 15px 40px rgba(15,23,42,.8)}
+    .brand{font-weight:600;font-size:20px;margin-bottom:4px}
+    .subtitle{font-size:13px;color:#9ca3af;max-width:460px}
+    .cta-block{text-align:right;display:flex;flex-direction:column;gap:4px}
+    .btn{border-radius:999px;border:1px solid rgba(148,163,184,.6);background:transparent;color:#e5e7eb;padding:6px 14px;font-size:13px;cursor:pointer}
+    .btn.primary{background:#22c55e;border-color:#22c55e;color:#022c22;font-weight:600}
+    .btn.primary.big{padding:8px 18px;font-size:14px}
+    .btn.primary:hover{filter:brightness(1.05)}
+    .price-note{font-size:11px;color:#9ca3af}
+
+    #checkTemplate{margin:10px 0 14px;padding:8px 12px;font-size:16px;color:#1d4ed8;background:#eff6ff;border-radius:10px;border:1px solid #bfdbfe}
+
+    .cards-row{display:grid;grid-template-columns:1.2fr 1.2fr;gap:16px;align-items:flex-start}
+    .card{background:#f9fafb;border-radius:18px;padding:12px 14px 16px;box-shadow:0 10px 35px rgba(15,23,42,.4);border:1px solid rgba(148,163,184,.5);position:relative}
+    .card h2{font-size:16px;margin-bottom:4px}
+    .card p{font-size:13px}
+
+    .certificate{position:relative;margin-top:10px;border-radius:12px;overflow:hidden;background:#e5e7eb;width:100%;aspect-ratio:210/297}
+    .bg{position:absolute;inset:0;background-position:center;background-repeat:no-repeat;background-size:contain}
+
+    .field{
+      position:absolute;
+      font-family:"Times New Roman",serif;
+      font-size:12px;
+      line-height:1.2;
+      color:#111827;
+      font-weight:600;
+      text-align:center;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      border:none !important;
+      outline:none !important;
+      box-shadow:none !important;
+    }
+    .field:hover,.field:focus,.field:focus-visible{border:none!important;outline:none!important;box-shadow:none!important}
+    [contenteditable="true"]{outline:none!important;border:none!important;box-shadow:none!important}
+
+    .field.multiline{white-space:pre-line;text-align:center}
+    .field.stamp{font-size:10px;line-height:1.25;text-align:center;white-space:pre-line}
+
+    .badge{position:absolute;top:6px;right:6px;background:rgba(15,23,42,.85);color:#e5e7eb;font-size:10px;padding:3px 8px;border-radius:999px;letter-spacing:.08em;text-transform:uppercase}
+
+    .block{position:absolute;border:none!important}
+    .hotspot{position:absolute;cursor:pointer;background:transparent!important;border:none!important;border-radius:0;opacity:0!important;transition:none!important}
+    .certificate:hover .hotspot{opacity:0!important}
+
+    .ru-b1{left:12%;top:22%;width:76%;height:20%}
+    .ru-b2{left:12%;top:43%;width:76%;height:7%}
+    .ru-b3{left:12%;top:52%;width:76%;height:35%}
+
+    .watermark{
+      position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+      font-family:system-ui,sans-serif;font-size:58px;font-weight:800;color:rgba(220,38,38,.28);
+      text-align:center;white-space:pre-line;transform:rotate(-25deg);pointer-events:none
+    }
+
+    .order-info{margin-top:16px}
+    .order-info h3{font-size:15px;margin-bottom:2px}
+    .order-info small{font-size:11px;color:#4b5563}
+
+    .grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    .grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+    .small{font-size:11px;color:#4b5563;display:block;margin-bottom:2px}
+    input,select{width:100%;border-radius:8px;border:1px solid #cbd5e1;padding:6px 8px;font-size:13px}
+
+    .modal{position:fixed;inset:0;background:rgba(15,23,42,.65);display:none;align-items:center;justify-content:center;z-index:1000;padding:16px}
+    .modal__panel{background:#f9fafb;max-width:720px;width:100%;border-radius:14px;box-shadow:0 20px 70px rgba(15,23,42,.9);padding:14px 16px 16px}
+    .modal__head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px}
+    .modal__title{font-size:15px;font-weight:600}
+    .modal__body{font-size:13px;max-height:70vh;overflow:auto;padding-right:4px}
+
+    .seal-img{
+      position:absolute;
+      right:40px;
+      top:12px;
+      width:200px;
+      opacity:.9;
+      pointer-events:none;
+    }
+
+    @media (max-width:900px){.cards-row{grid-template-columns:1fr}}
+    @media (max-width:640px){
+      body{padding:12px}
+      .wrap{flex-direction:column;align-items:flex-start}
+      .cta-block{align-items:flex-start;text-align:left}
+    }
+
+    /* ===== Компактная модалка для B3 ===== */
+    #modal-b3 .modal__panel { max-height: 90vh; display: flex; flex-direction: column; }
+    #modal-b3 .modal__body { padding: 12px 14px; overflow-y: auto; flex: 1; max-height: none; }
+    #modal-b3 .grid2, #modal-b3 .grid3 { gap: 8px 10px; }
+    #modal-b3 label.small { font-size: 12px; margin-bottom: 2px; }
+    #modal-b3 input, #modal-b3 select { padding: 6px 8px; font-size: 13px; }
+
+    /* липкий низ с кнопками */
+    #modal-b3 .grid2[style*="justify-content:flex-end"] {
+      margin-top: 8px !important;
+      padding-top: 8px;
+      border-top: 1px solid #e5e7eb;
+      background: #f9fafb;
+      position: sticky;
+      bottom: 0;
+      z-index: 5;
+    }
+    #modal-b3 .modal__head { margin-bottom: 8px; }
+
+    /* ===== 3 строки (RU + EN): 5 / 8 / 9 слов ===== */
+    .field.regplace3mix,
+    .field.issueplace3mix{
+      white-space: normal;
+      line-height: 1.22;
+      overflow: hidden;
+    }
+    .field.regplace3mix .l1,
+    .field.issueplace3mix .l1{
+      display:block;
+      text-align:right;
+      white-space:nowrap;
+      margin-bottom: 2px;
+    }
+    .field.regplace3mix .l2,
+    .field.issueplace3mix .l2{
+      display:block;
+      text-align:right;
+      white-space:nowrap;
+      margin-bottom: 2px;
+    }
+    .field.regplace3mix .l3,
+    .field.issueplace3mix .l3{
+      display:block;
+      text-align:center;
+      white-space:nowrap;
+    }
+.field.stamp.multiline{
+  white-space: pre-line !important; /* переносы \n будут работать */
+  line-height: 1.1;
+}
+
+  </style>
+</head>
+
+<body>
+  <div class="page">
+    <header>
+      <div class="wrap">
+        <div>
+          <div class="brand">FortenDocs</div>
+          <div class="subtitle">Перевод свидетельства о рождении (RU → EN) для подачи в консульства и организации</div>
+        </div>
+        <div class="cta-block">
+          <button id="payBtn" class="btn primary big" onclick="startPayment()">Оплатить — 20 USD</button>
+          <div class="price-note">Готовый PDF приходит на e-mail автоматически сразу после оплаты.</div>
+        </div>
+      </div>
+    </header>
+
+    <div id="checkTemplate">Текущий шаблон: РФ (современный российский бланк)</div>
+
+    <div class="cards-row">
+      <!-- RU -->
+      <div class="card">
+        <h2>RU — данные оригинала</h2>
+        <p style="margin:0 0 6px;font-size:14px;color:#64748b">
+          Нажмите на любую зону свидетельства, чтобы заполнить блок: B1 — ФИО/дата/место, B2 — запись акта, B3 — родители и выдача.
+        </p>
+
+        <div id="ru" class="certificate">
+          <div id="bg-ru" class="bg" style="background-image:url('bg_ru.png')"></div>
+
+          <div class="block ru-b1"></div><div class="hotspot ru-b1" data-open="b1" title="Блок 1: ФИО/Дата/Место"></div>
+          <div class="block ru-b2"></div><div class="hotspot ru-b2" data-open="b2" title="Блок 2: Запись акта"></div>
+          <div class="block ru-b3"></div><div class="hotspot ru-b3" data-open="b3" title="Блок 3: Родители/Выдача/Низ"></div>
+
+          <div class="field" data-k="ru_surname"     style="left:21.0475%;top:24.3743%;width:60%"></div>
+          <div class="field" data-k="ru_namepatr"    style="left:21.2085%;top:27.0388%;width:60%"></div>
+          <div class="field" data-k="ru_dob"         style="left:30.468%;top:29.5477%;width:40%"></div>
+
+          <div class="field" data-k="ru_place_line1" style="left:15.1419%;top:37.1556%;width:76%"></div>
+          <div class="field" data-k="ru_place_line2" style="left:14.7353%;top:39.7536%;width:76%"></div>
+
+          <div class="field" data-k="ru_year"     style="left:19.2658%;top:44.8266%;width:8%"></div>
+          <div class="field" data-k="ru_month"    style="left:44.1621%;top:44.8272%;width:12%"></div>
+          <div class="field" data-k="ru_day"      style="left:73.6456%;top:44.7708%;width:8%"></div>
+          <div class="field" data-k="ru_recordno" style="left:37.4019%;top:47.4618%;width:40%"></div>
+
+          <div class="field" data-k="ru_father_sur"  style="left:20.5556%;top:49.9476%;width:60%"></div>
+          <div class="field" data-k="ru_father_name" style="left:20.802%;top:52.452%;width:60%"></div>
+          <div class="field" data-k="ru_father_nat"  style="left:20.802%;top:55.0274%;width:60%"></div>
+
+          <div class="field" data-k="ru_father_nation" style="left:20.8%;top:56.3%;width:60%"></div>
+          <div class="field" data-k="ru_father_dob_day"  style="left:20.8%;top:57.6%;width:6%"></div>
+          <div class="field" data-k="ru_father_dob_mon"  style="left:33.0%;top:57.6%;width:18%"></div>
+          <div class="field" data-k="ru_father_dob_year" style="left:56.0%;top:57.6%;width:10%"></div>
+
+          <div class="field" data-k="ru_mother_sur"  style="left:20.8012%;top:60.0458%;width:60%"></div>
+          <div class="field" data-k="ru_mother_name" style="left:20.8012%;top:62.6218%;width:60%"></div>
+          <div class="field" data-k="ru_mother_nat"  style="left:20.7589%;top:65.3195%;width:60%"></div>
+
+          <div class="field" data-k="ru_mother_nation" style="left:20.8%;top:66.6%;width:60%"></div>
+          <div class="field" data-k="ru_mother_dob_day"  style="left:20.8%;top:67.9%;width:6%"></div>
+          <div class="field" data-k="ru_mother_dob_mon"  style="left:33.0%;top:67.9%;width:18%"></div>
+          <div class="field" data-k="ru_mother_dob_year" style="left:56.0%;top:67.9%;width:10%"></div>
+
+          <div class="field regplace3mix" data-k="ru_regplace" data-html="1" style="left:32.3772%;top:70.3311%;width:70%"></div>
+          <div class="field issueplace3mix" data-k="ru_regplace2" data-html="1" style="left:15.2702%;top:72.7836%;width:70%"></div>
+
+          <div class="field" data-k="ru_issue_day"   style="left:39.9912%;top:79.0979%;width:6%"></div>
+          <div class="field" data-k="ru_issue_month" style="left:55.4719%;top:79.0257%;width:14%"></div>
+          <div class="field" data-k="ru_issue_year"  style="left:81.0132%;top:79.0979%;width:10%"></div>
+
+          <div class="field" data-k="ru_zags_head"  style="left:44.2116%;top:84.8829%;width:60%"></div>
+          <div class="field stamp" data-k="ru_stamp_text" style="left:9.06091%;top:87.7717%;width:80%"></div>
+          <div class="field" data-k="ru_series"     style="left:38.0891%;top:90.2654%;width:12%"></div>
+          <div class="field" data-k="ru_number"     style="left:49.1709%;top:90.2654%;width:12%"></div>
+
+          <div class="badge">RU</div>
+        </div>
+      </div>
+
+      <!-- EN -->
+      <div class="card">
+        <h2>EN — перевод (предпросмотр, ОБРАЗЕЦ)</h2>
+        <p style="margin:0 0 6px;font-size:14px;color:#64748b">
+          Здесь вы видите только пример перевода. После оплаты вы получите PDF без водяного знака «Образец / Sample».
+        </p>
+
+        <div id="en" class="certificate">
+          <div id="bg-en" class="bg" style="background-image:url('bg_en.png')"></div>
+          <img src="seal.png" alt="Seal of translator" class="seal-img">
+
+          <div class="field" data-k="en_surname"   style="left:20.1475%;top:24.4482%;width:60%"></div>
+          <div class="field" data-k="en_namepatr"  style="left:20.1315%;top:27.0777%;width:60%"></div>
+          <div class="field" data-k="en_dob"       style="left:26.7969%;top:29.6492%;width:46%"></div>
+
+          <div class="field multiline" data-k="en_place_line1" style="left:14.1526%;top:36.9927%;width:76%"></div>
+          <div class="field" data-k="en_place_line2" style="left:13.5124%;top:39.7536%;width:76%"></div>
+
+          <div class="field" data-k="en_year"     style="left:23.0389%;top:44.8988%;width:8%"></div>
+          <div class="field" data-k="en_month"    style="left:46.8152%;top:44.7624%;width:12%"></div>
+          <div class="field" data-k="en_day"      style="left:74.5568%;top:44.9709%;width:8%"></div>
+          <div class="field" data-k="en_recordno" style="left:35.5102%;top:47.5266%;width:40%"></div>
+
+          <div class="field" data-k="en_father_sur"  style="left:19.8836%;top:49.8754%;width:60%"></div>
+          <div class="field" data-k="en_father_name" style="left:19.9857%;top:52.452%;width:60%"></div>
+          <div class="field" data-k="en_father_nat"  style="left:19.9857%;top:55.0995%;width:60%"></div>
+
+          <div class="field" data-k="en_father_nation" style="left:20.0%;top:56.3%;width:60%"></div>
+          <div class="field" data-k="en_father_dob_day"  style="left:20.0%;top:57.6%;width:6%"></div>
+          <div class="field" data-k="en_father_dob_mon"  style="left:33.0%;top:57.6%;width:18%"></div>
+          <div class="field" data-k="en_father_dob_year" style="left:56.0%;top:57.6%;width:10%"></div>
+
+          <div class="field" data-k="en_mother_sur"  style="left:19.8836%;top:60.0458%;width:60%"></div>
+          <div class="field" data-k="en_mother_name" style="left:20.0877%;top:62.6218%;width:60%"></div>
+          <div class="field" data-k="en_mother_nat"  style="left:20.0877%;top:65.3415%;width:60%"></div>
+
+          <div class="field" data-k="en_mother_nation" style="left:20.0%;top:66.6%;width:60%"></div>
+          <div class="field" data-k="en_mother_dob_day"  style="left:20.0%;top:67.9%;width:6%"></div>
+          <div class="field" data-k="en_mother_dob_mon"  style="left:33.0%;top:67.9%;width:18%"></div>
+          <div class="field" data-k="en_mother_dob_year" style="left:56.0%;top:67.9%;width:10%"></div>
+
+          <div class="field regplace3mix" data-k="en_regplace" data-html="1" style="left:28.7%;top:70.3604%;width:70%"></div>
+          <div class="field issueplace3mix" data-k="en_regplace2" data-html="1" style="left:9.35%;top:72.7419%;width:70%"></div>
+
+          <div class="field" data-k="en_issue_day"   style="left:39.89%;top:78.9536%;width:6%"></div>
+          <div class="field" data-k="en_issue_month" style="left:54.7592%;top:78.9536%;width:14%"></div>
+          <div class="field" data-k="en_issue_year"  style="left:80.6059%;top:78.9536%;width:10%"></div>
+
+          <div class="field" data-k="en_zags_head"  style="left:43.0891%;top:84.955%;width:60%"></div>
+          <div class="field stamp multiline" data-k="en_stamp_text" style="left:12.3262%;top:87.7717%;width:80%"></div>
+
+          <div class="field" data-k="en_series"     style="left:39.1574%;top:91.3719%;width:12%"></div>
+          <div class="field" data-k="en_number"     style="left:48.6591%;top:91.3967%;width:12%"></div>
+
+          <div class="watermark">ОБРАЗЕЦ
+SAMPLE</div>
+          <div class="badge">EN</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="orderInfo" class="card order-info">
+      <h3>Как заказать перевод</h3>
+      <p style="margin:4px 0 6px;font-size:14px;">Стоимость перевода одного свидетельства о рождении — <b>20 USD</b>.</p>
+      <small>
+        После заполнения всех данных нажмите «Оплатить — 20 USD» вверху страницы.<br>
+        После оплаты вы получите готовый PDF без водяного знака «Образец / Sample» на указанный e-mail.
+      </small>
+    </div>
+  </div>
+
+  <!-- ===== МОДАЛКИ ===== -->
+  <div id="modal-b1" class="modal" role="dialog" aria-modal="true">
+    <div class="modal__panel">
+      <div class="modal__head">
+        <h3 class="modal__title">Блок 1 — ФИО, дата и место рождения</h3>
+        <button class="btn" data-close="b1">×</button>
+      </div>
+      <div class="modal__body">
+        <div class="grid3">
+          <div><label class="small">Фамилия</label><input id="b1-sur" placeholder="Иванов"></div>
+          <div><label class="small">Имя</label><input id="b1-name" placeholder="Иван"></div>
+          <div><label class="small">Отчество</label><input id="b1-patr" placeholder="Иванович"></div>
+        </div>
+
+        <div style="margin-top:10px"><label class="small">Дата рождения</label></div>
+        <div class="grid3">
+          <div><input id="b1-day" placeholder="день" inputmode="numeric"></div>
+          <div><input id="b1-mon" placeholder="месяц (1–12 или «март»)"></div>
+          <div><input id="b1-year" placeholder="год" inputmode="numeric"></div>
+        </div>
+
+        <div style="margin-top:14px"><label class="small">Место рождения</label></div>
+        <div class="grid3">
+          <div>
+            <label class="small">Тип</label>
+            <select id="b1-type">
+              <option value="г.">г. (город)</option>
+              <option value="с.">с. (село)</option>
+              <option value="д.">д. (деревня)</option>
+              <option value="пос.">пос. (посёлок)</option>
+            </select>
+          </div>
+          <div>
+            <label class="small">Населённый пункт</label>
+            <input id="b1-city" placeholder="Сосновый Бор / Москва / ...">
+          </div>
+          <div>
+            <label class="small">Регион</label>
+            <input id="b1-region" placeholder="Ленинградская область / Республика Татарстан и т.п.">
+          </div>
+        </div>
+
+        <div class="grid2" style="margin-top:12px;justify-content:flex-end">
+          <div></div>
+          <div style="display:flex;gap:8px;justify-content:flex-end">
+            <button class="btn" data-close="b1">Отмена</button>
+            <button class="btn primary" id="b1-apply">OK</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-b2" class="modal" role="dialog" aria-modal="true">
+    <div class="modal__panel">
+      <div class="modal__head">
+        <h3 class="modal__title">Блок 2 — Запись акта (год, месяц, день, №)</h3>
+        <button class="btn" data-close="b2">×</button>
+      </div>
+      <div class="modal__body">
+        <div class="grid3">
+          <div><label class="small">Год</label><input id="b2-year" inputmode="numeric" placeholder="YYYY"></div>
+          <div><label class="small">Месяц</label><input id="b2-mon" placeholder="март / 03"></div>
+          <div><label class="small">День</label><input id="b2-day" inputmode="numeric" placeholder="DD"></div>
+        </div>
+        <div style="margin-top:8px">
+          <label class="small">Номер записи</label>
+          <input id="b2-no" placeholder="123456">
+        </div>
+        <div class="grid2" style="margin-top:12px;justify-content:flex-end">
+          <div></div>
+          <div style="display:flex;gap:8px;justify-content:flex-end">
+            <button class="btn" data-close="b2">Отмена</button>
+            <button class="btn primary" id="b2-apply">OK</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-b3" class="modal" role="dialog" aria-modal="true">
+    <div class="modal__panel">
+      <div class="modal__head">
+        <h3 class="modal__title">Блок 3 — Родители, выдача и нижний блок</h3>
+        <button class="btn" data-close="b3">×</button>
+      </div>
+      <div class="modal__body">
+        <div class="grid2">
+          <div><label class="small">Фамилия отца</label><input id="b3-f-sur"></div>
+          <div><label class="small">Имя-Отчество отца</label><input id="b3-f-name"></div>
+          <div><label class="small">Гражданство отца</label><input id="b3-f-nat" placeholder="Гражданин РФ"></div>
+
+          <!-- ✅ НАЦИОНАЛЬНОСТЬ ОТЦА: select + другое -->
+          <div>
+            <label class="small">Национальность отца</label>
+            <select id="b3-f-nation">
+              <option value="">— выбрать —</option>
+              <option value="русский">Русский</option>
+              <option value="белорус">Белорус</option>
+              <option value="украинец">Украинец</option>
+              <option value="татарин">Татарин</option>
+              <option value="башкир">Башкир</option>
+              <option value="чеченец">Чеченец</option>
+              <option value="армянин">Армянин</option>
+              <option value="грузин">Грузин</option>
+              <option value="азербайджанец">Азербайджанец</option>
+              <option value="казах">Казах</option>
+              <option value="узбек">Узбек</option>
+              <option value="таджик">Таджик</option>
+              <option value="еврей">Еврей</option>
+              <option value="не указана">Не указана</option>
+              <option value="other">Другое (ввести)</option>
+            </select>
+            <input id="b3-f-nation-other" style="display:none;margin-top:6px" placeholder="Введите национальность отца">
+          </div>
+
+          <div class="grid3" style="grid-column:span 2">
+            <div><label class="small">Отец — день рождения</label><input id="b3-f-d" inputmode="numeric" placeholder="12"></div>
+            <div><label class="small">Отец — месяц рождения</label><input id="b3-f-m" placeholder="март / 03"></div>
+            <div><label class="small">Отец — год рождения</label><input id="b3-f-y" inputmode="numeric" placeholder="1965"></div>
+          </div>
+
+          <div><label class="small">Фамилия матери</label><input id="b3-m-sur"></div>
+          <div><label class="small">Имя-Отчество матери</label><input id="b3-m-name"></div>
+          <div><label class="small">Гражданство матери</label><input id="b3-m-nat" placeholder="Гражданка РФ"></div>
+
+          <!-- ✅ НАЦИОНАЛЬНОСТЬ МАТЕРИ: select + другое -->
+          <div>
+            <label class="small">Национальность матери</label>
+            <select id="b3-m-nation">
+              <option value="">— выбрать —</option>
+              <option value="русская">Русская</option>
+              <option value="белоруска">Белоруска</option>
+              <option value="украинка">Украинка</option>
+              <option value="татарка">Татарка</option>
+              <option value="башкирка">Башкирка</option>
+              <option value="чеченка">Чеченка</option>
+              <option value="армянка">Армянка</option>
+              <option value="грузинка">Грузинка</option>
+              <option value="азербайджанка">Азербайджанка</option>
+              <option value="казашка">Казашка</option>
+              <option value="узбечка">Узбечка</option>
+              <option value="таджичка">Таджичка</option>
+              <option value="еврейка">Еврейка</option>
+              <option value="не указана">Не указана</option>
+              <option value="other">Другое (ввести)</option>
+            </select>
+            <input id="b3-m-nation-other" style="display:none;margin-top:6px" placeholder="Введите национальность матери">
+          </div>
+
+          <div class="grid3" style="grid-column:span 2">
+            <div><label class="small">Мать — день рождения</label><input id="b3-m-d" inputmode="numeric" placeholder="7"></div>
+            <div><label class="small">Мать — месяц рождения</label><input id="b3-m-m" placeholder="июля / 07"></div>
+            <div><label class="small">Мать — год рождения</label><input id="b3-m-y" inputmode="numeric" placeholder="1968"></div>
+          </div>
+
+          <div class="grid2" style="grid-column:span 2">
+            <div>
+              <label class="small">Место государственной регистрации</label>
+              <input id="b3-regplace" placeholder="Отдел ЗАГС, город, регион">
+            </div>
+            <div>
+              <label class="small">Место выдачи свидетельства</label>
+              <input id="b3-regplace2" placeholder="Наименование органа, выдавшего свидетельство">
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:12px"><label class="small">Дата выдачи</label></div>
+        <div class="grid3">
+          <div><input id="b3-id-day" inputmode="numeric" placeholder="день"></div>
+          <div><input id="b3-id-mon" placeholder="месяц (июля / 07)"></div>
+          <div><input id="b3-id-yr" inputmode="numeric" placeholder="год"></div>
+        </div>
+
+        <div class="grid3" style="margin-top:12px">
+          <div><label class="small">Серия</label><input id="b3-ser" placeholder="II-ЕЮ"></div>
+          <div><label class="small">Номер</label><input id="b3-num" placeholder="619418"></div>
+          <div><label class="small">Текст печати (низ)</label><input id="b3-stamp" placeholder="Печать: Министерство юстиции РФ • ..."></div>
+        </div>
+
+        <div style="margin-top:12px">
+          <label class="small">Должностное лицо (ФИО, кто выдал)</label>
+          <input id="b3-head" placeholder="И.О. Фамилия">
+        </div>
+
+        <div class="grid2" style="margin-top:12px;justify-content:flex-end">
+          <div></div>
+          <div style="display:flex;gap:8px;justify-content:flex-end">
+            <button class="btn" data-close="b3">Отмена</button>
+            <button class="btn primary" id="b3-apply">OK</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== ОСНОВНАЯ ЛОГИКА ===== -->
+  <script>
+    // --- ШАБЛОН ПО ?tpl= ---
+    const urlParams = new URLSearchParams(window.location.search);
+    const tpl = urlParams.get("tpl") || "birth_1995_2019";
+    let CURRENT_TEMPLATE = (tpl === "birth_ussr") ? "ussr" : "rf";
+    window.CURRENT_TEMPLATE = CURRENT_TEMPLATE;
+    document.body.classList.add("tpl-" + CURRENT_TEMPLATE);
+
+    const checkTplEl = document.getElementById("checkTemplate");
+    if (checkTplEl) {
+      checkTplEl.innerText =
+        CURRENT_TEMPLATE === "ussr"
+          ? "Текущий шаблон: СССР (старый советский/ранний РФ бланк)"
+          : "Текущий шаблон: РФ (современный российский бланк)";
+    }
+
+    const bgEn = document.getElementById("bg-en");
+    if (bgEn) bgEn.style.backgroundImage = (CURRENT_TEMPLATE === "ussr") ? "url('bg_en_ussr.png')" : "url('bg_en.png')";
+    const bgRu = document.getElementById("bg-ru");
+    if (bgRu) bgRu.style.backgroundImage = (CURRENT_TEMPLATE === "ussr") ? "url('bg_ru_ussr.png')" : "url('bg_ru.png')";
+
+    // ===== RegPlace HTML: 5 / 8 / 9 (1-2 right, 3 center) =====
+    function escHTML(s){
+      return (s||'').replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");
+    }
+    function buildRegplaceHTML_5_8_9(text) {
+      const words = (text || '').trim().split(/\s+/).filter(Boolean);
+      const l1 = words.slice(0, 5).join(' ');
+      const l2 = words.slice(5, 13).join(' ');
+      const l3 = words.slice(13, 22).join(' ');
+      return `
+        <span class="l1">${escHTML(l1)}</span>
+        <span class="l2">${escHTML(l2)}</span>
+        <span class="l3">${escHTML(l3)}</span>
+      `;
+    }
+
+    // ===== API перевода =====
+    async function callTranslateAPI(text, purpose) {
+      const res = await fetch('/api/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, purpose })
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      const t = (data.translation || data.text || '').trim();
+      return t || text;
+    }
+
+    function wrapWords(text, maxPerLine) {
+      const words = (text || '').split(/\s+/).filter(Boolean);
+      if (!words.length) return '';
+      const out = [];
+      let line = [];
+      words.forEach((w, i) => {
+        line.push(w);
+        if (line.length === maxPerLine && i !== words.length - 1) {
+          out.push(line.join(' '));
+          line = [];
+        }
+      });
+      if (line.length) out.push(line.join(' '));
+      return out.join('\n');
+    }
+	// ===== STAMP: 2 строки, перенос после 10 слов =====
+function wrapStampTwoLines(text, firstLineWords = 10) {
+  const words = (text || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean);
+
+  if (!words.length) return '';
+
+  const line1 = words.slice(0, firstLineWords).join(' ');
+  const line2 = words.slice(firstLineWords).join(' ');
+
+  return line2 ? `${line1}\n${line2}` : line1;
+}
+
+    function translateWithAPI(sourceText, purpose, targetKey, options = {}) {
+      const { prefix = '', fallback = '', wrapWordsCount = null } = options;
+      sourceText = (sourceText || '').trim();
+      if (!sourceText) { setText(targetKey, ''); return; }
+
+      if (fallback) {
+        const val = wrapWordsCount ? wrapWords(fallback, wrapWordsCount) : fallback;
+        setText(targetKey, prefix + val);
+      }
+
+      callTranslateAPI(sourceText, purpose)
+        .then(t => {
+          const val = wrapWordsCount ? wrapWords(t, wrapWordsCount) : t;
+          setText(targetKey, prefix + val);
+        })
+        .catch(err => console.warn('translate API error', err));
+    }
+
+    // ===== ТРАНСЛИТ / МЕСЯЦЫ =====
+    const monthsEn = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+    const MONTHS_GEN = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+
+    const trMap = {
+      'А':'A','а':'a','Б':'B','б':'b','В':'V','в':'v','Г':'G','г':'g','Д':'D','д':'d',
+      'Е':'E','е':'e','Ё':'E','ё':'e','Ж':'Zh','ж':'zh','З':'Z','з':'z','И':'I','и':'i',
+      'Й':'I','й':'i','К':'K','к':'k','Л':'L','л':'l','М':'M','м':'m','Н':'N','н':'n',
+      'О':'O','о':'o','П':'P','п':'p','Р':'R','р':'r','С':'S','с':'s','Т':'T','т':'t',
+      'У':'U','у':'u','Ф':'F','ф':'f','Х':'Kh','х':'kh','Ц':'Ts','ц':'ts','Ч':'Ch','ч':'ch',
+      'Ш':'Sh','ш':'sh','Щ':'Shch','щ':'shch','Ы':'Y','ы':'y','Э':'E','э':'e',
+      'Ю':'Iu','ю':'iu','Я':'Ia','я':'ia','Ь':'','ь':'','Ъ':'','ъ':''
+    };
+
+    const NAME_OVERRIDES = new Map([
+      ['Татьяна','Tatiana'],['татьяна','Tatiana'],
+      ['Кузьма','Kuzma'],['кузьма','Kuzma'],
+      ['Кузьмин','Kuzmin'],['кузьмин','Kuzmin']
+    ]);
+
+    const tr = s => (s || '').split(' ').map(
+      w => NAME_OVERRIDES.get(w) ?? w.split('').map(c => trMap[c] ?? c).join('')
+    ).join(' ');
+
+    const ru2enMonth = t => {
+      const m = (t || '').toLowerCase();
+      const map = {
+        'январ':'January','феврал':'February','март':'March','апрел':'April','ма':'May',
+        'июн':'June','июл':'July','август':'August','сентяб':'September','октябр':'October',
+        'ноябр':'November','декабр':'December'
+      };
+      for (const k in map) if (m.startsWith(k)) return map[k];
+      if (/^\d+$/.test(m)) {
+        const i = Math.min(12, Math.max(1, +m)) - 1;
+        return monthsEn[i];
+      }
+      return t;
+    };
+
+    function translateRuToEnLocal(text) {
+      text = (text || '').trim();
+      if (!text) return '';
+      const norm = text.toLowerCase().replace(/\s+/g,' ').trim();
+      if (norm === 'гражданин рф' || norm === 'гражданин российской федерации') return 'Citizen of the Russian Federation';
+      if (norm === 'гражданка рф' || norm === 'гражданка российской федерации') return 'Citizen of the Russian Federation';
+      return tr(text);
+    }
+const REGION_OVERRIDES = new Map([
+  // самые частые, можно расширять
+  ["Краснодарский край", "Krasnodar Territory"],
+  ["Краснодарского края", "Krasnodar Territory"],
+
+  ["Ставропольский край", "Stavropol Territory"],
+  ["Ставропольского края", "Stavropol Territory"],
+
+  ["Ленинградская область", "Leningrad Region"],
+  ["Ленинградской области", "Leningrad Region"],
+
+  ["Московская область", "Moscow Region"],
+  ["Московской области", "Moscow Region"],
+]);
+
+function translateRegionRuToEn(text) {
+  let s = (text || "").trim();
+  if (!s) return "";
+  s = s.replace(/\s+/g, " ");
+
+  // 0) точные совпадения (самый надежный вариант)
+  if (REGION_OVERRIDES.has(s)) return REGION_OVERRIDES.get(s);
+
+  // Москва / СПб
+  if (/^(г\.\s*)?москва$/i.test(s) || /^город\s+москва$/i.test(s)) return "Moscow";
+  if (/^(г\.\s*)?санкт[-\s]*петербург$/i.test(s) || /^город\s+санкт[-\s]*петербург$/i.test(s)) return "Saint Petersburg";
+
+  // Республика Татарстан / Республики Татарстан
+  let m = /^республик(а|и)\s+(.+)$/i.exec(s);
+  if (m) return `Republic of ${tr(m[2].trim())}`;
+
+  // ... автономный округ / автономного округа
+  m = /^(.+?)\s+автономн(ый|ая)\s+округ(а)?$/i.exec(s);
+  if (m) return `${tr(m[1].trim())} Autonomous Okrug`;
+
+  // ... край / края
+  m = /^(.+?)\s+край(а)?$/i.exec(s);
+  if (m) {
+    const base = m[1].trim();
+    // если это прилагательное типа "Краснодарский", то без словаря получится Krasnodarskii
+    // поэтому словарь выше — обязателен для красивых форм Krasnodar / Stavropol / etc.
+    return `${tr(base)} Territory`;
+  }
+
+  // ... область / области
+  m = /^(.+?)\s+область(и)?$/i.exec(s);
+  if (m) return `${tr(m[1].trim())} Region`;
+
+  // если не распознали — хотя бы транслит
+  return tr(s);
+}
+
+
+    // ===== ПОЛЯ =====
+    function setText(k, val) {
+      const el = document.querySelector(`.field[data-k="${k}"]`);
+      if (!el) return;
+      if (el.getAttribute("data-html") === "1") el.innerHTML = val;
+      else el.textContent = val;
+    }
+    function textOf(k) {
+      const el = document.querySelector(`.field[data-k="${k}"]`);
+      if (!el) return '';
+      return (el.innerText || '').trim();
+    }
+    document.querySelectorAll('.field').forEach(el => el.contentEditable = 'false');
+
+    // ===== НАЦИОНАЛЬНОСТИ: помощники для select + другое =====
+    function toggleNationOther(selectEl, otherEl) {
+      if (!selectEl || !otherEl) return;
+      const isOther = selectEl.value === 'other';
+      otherEl.style.display = isOther ? 'block' : 'none';
+      if (!isOther) otherEl.value = '';
+    }
+
+    function setNationControls(selectEl, otherEl, valueFromRu) {
+      const v = (valueFromRu || '').trim();
+      if (!selectEl || !otherEl) return;
+
+      const hasOption = Array.from(selectEl.options).some(o => (o.value || '').toLowerCase() === v.toLowerCase());
+      if (!v) {
+        selectEl.value = '';
+        otherEl.value = '';
+        toggleNationOther(selectEl, otherEl);
+        return;
+      }
+      if (hasOption) {
+        // находим точное значение (с учётом регистра)
+        const opt = Array.from(selectEl.options).find(o => (o.value || '').toLowerCase() === v.toLowerCase());
+        selectEl.value = opt ? opt.value : v;
+        otherEl.value = '';
+      } else {
+        selectEl.value = 'other';
+        otherEl.value = v;
+      }
+      toggleNationOther(selectEl, otherEl);
+    }
+
+    function getNationValue(selectEl, otherEl) {
+      if (!selectEl || !otherEl) return '';
+      if (selectEl.value === 'other') return (otherEl.value || '').trim();
+      return (selectEl.value || '').trim();
+    }
+
+    // Подключаем change-события сразу
+    (function initNationSelects(){
+      const fSel = document.getElementById('b3-f-nation');
+      const fOther = document.getElementById('b3-f-nation-other');
+      const mSel = document.getElementById('b3-m-nation');
+      const mOther = document.getElementById('b3-m-nation-other');
+
+      if (fSel && fOther) {
+        fSel.addEventListener('change', () => toggleNationOther(fSel, fOther));
+        toggleNationOther(fSel, fOther);
+      }
+      if (mSel && mOther) {
+        mSel.addEventListener('change', () => toggleNationOther(mSel, mOther));
+        toggleNationOther(mSel, mOther);
+      }
+    })();
+
+    // ===== СИНХРОНИЗАЦИЯ RU→EN =====
+    function sync(key, v) {
+      if (key === 'ru_surname') setText('en_surname', tr(v));
+      if (key === 'ru_namepatr') setText('en_namepatr', tr(v));
+
+      // ===== МЕСТО РОЖДЕНИЯ (RU -> EN) =====
+      if (key === 'ru_place_line1') {
+        const plain = (v || '').replace(/\n/g, ' ').trim();
+        setText('en_place_line1', tr(plain));
+        callTranslateAPI(plain, 'Place of birth on a birth certificate (city/town, region).')
+          .then(t => setText('en_place_line1', (t || '').trim() || tr(plain)))
+          .catch(() => {});
+      }
+
+      if (key === 'ru_place_line2') {
+        const plain = (v || '').replace(/\n/g, ' ').trim();
+        const norm = plain.toLowerCase();
+        if (norm.includes('российская федерация')) {
+          setText('en_place_line2', 'Russian Federation');
+        } else {
+          setText('en_place_line2', tr(plain));
+          callTranslateAPI(plain, 'Country of birth on a birth certificate.')
+            .then(t => setText('en_place_line2', (t || '').trim() || tr(plain)))
+            .catch(() => {});
+        }
+      }
+
+      if (key === 'ru_father_nat') {
+        const fb = translateRuToEnLocal(v);
+        translateWithAPI(v,'Citizenship of the father (short official).','en_father_nat',{fallback:fb});
+      }
+      if (key === 'ru_mother_nat') {
+        const fb = translateRuToEnLocal(v);
+        translateWithAPI(v,'Citizenship of the mother (short official).','en_mother_nat',{fallback:fb});
+      }
+
+      // ✅ NATIONALITY: только через сервер, без транслита
+      if (key === 'ru_father_nation') {
+        setText('en_father_nation', '');
+        callTranslateAPI((v || '').trim(), 'Nationality of the father (dictionary only).')
+          .then(t => setText('en_father_nation', (t || '').trim()))
+          .catch(() => setText('en_father_nation', ''));
+      }
+      if (key === 'ru_mother_nation') {
+        setText('en_mother_nation', '');
+        callTranslateAPI((v || '').trim(), 'Nationality of the mother (dictionary only).')
+          .then(t => setText('en_mother_nation', (t || '').trim()))
+          .catch(() => setText('en_mother_nation', ''));
+      }
+
+      if (key === 'ru_father_dob_day')  setText('en_father_dob_day', v);
+      if (key === 'ru_father_dob_mon')  setText('en_father_dob_mon', ru2enMonth(v));
+      if (key === 'ru_father_dob_year') setText('en_father_dob_year', v);
+
+      if (key === 'ru_mother_dob_day')  setText('en_mother_dob_day', v);
+      if (key === 'ru_mother_dob_mon')  setText('en_mother_dob_mon', ru2enMonth(v));
+      if (key === 'ru_mother_dob_year') setText('en_mother_dob_year', v);
+
+      if (key === 'ru_dob') {
+        const m = /^(\d{1,2})\s*([А-Яа-яA-Za-z\.]+)\s*(\d{4})/.exec(v) || /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(v);
+        if (m) {
+          const d = parseInt(m[1], 10), mon = m[2], y = m[3];
+          setText('en_dob', `${ru2enMonth(mon)} ${d}, ${y}`);
+        } else {
+          setText('en_dob', tr(v));
+        }
+      }
+
+      if (key === 'ru_year') setText('en_year', v);
+      if (key === 'ru_month') setText('en_month', ru2enMonth(v));
+      if (key === 'ru_day') setText('en_day', v);
+
+      if (key === 'ru_recordno') {
+        const cleaned = (v || '').replace(/№/gi,"").replace(/No\./gi,"").replace(/No/gi,"").replace(/Nº/gi,"").replace(/N°/gi,"").replace(/N\./gi,"").replace(/#/g,"").trim();
+        setText('en_recordno', cleaned);
+      }
+
+      if (key === 'ru_father_sur') setText('en_father_sur', tr(v));
+      if (key === 'ru_father_name') setText('en_father_name', tr(v));
+      if (key === 'ru_mother_sur') setText('en_mother_sur', tr(v));
+      if (key === 'ru_mother_name') setText('en_mother_name', tr(v));
+
+      if (key === 'ru_regplace') {
+        const plain = (v || '').replace(/\n/g,' ').trim();
+        setText('en_regplace', buildRegplaceHTML_5_8_9(tr(plain)));
+        callTranslateAPI(plain, 'Place of state registration on a birth certificate.')
+          .then(t => setText('en_regplace', buildRegplaceHTML_5_8_9((t || '').trim() || tr(plain))))
+          .catch(()=>{});
+      }
+
+      if (key === 'ru_regplace2') {
+        const plain = (v || '').replace(/\n/g,' ').trim();
+        setText('en_regplace2', buildRegplaceHTML_5_8_9(tr(plain)));
+        callTranslateAPI(plain, 'Place of state registration on a birth certificate.')
+          .then(t => setText('en_regplace2', buildRegplaceHTML_5_8_9((t || '').trim() || tr(plain))))
+          .catch(()=>{});
+      }
+
+      if (key === 'ru_issue_day') setText('en_issue_day', v);
+      if (key === 'ru_issue_month') setText('en_issue_month', ru2enMonth(v));
+      if (key === 'ru_issue_year') setText('en_issue_year', v);
+
+      if (key === 'ru_zags_head') setText('en_zags_head', tr(v));
+     // ✅ Серия и номер: копируем 1-в-1 (без транслита), чтобы кириллица сохранилась
+if (key === 'ru_series') setText('en_series', (v || '').trim());
+if (key === 'ru_number') setText('en_number', (v || '').trim());
+
+     if (key === 'ru_stamp_text') {
+  const cleanedRu = (v || '').replace(/^Печать[:\s-]*/i, '').trim();
+  const fallbackEn = translateRuToEnLocal(cleanedRu);
+
+  // Ставим быстрый fallback сразу
+  setText('en_stamp_text', 'Seal: ' + wrapStampTwoLines(fallbackEn, 8));
+
+  // Перевод с сервера → затем ЖЁСТКО режем: 10 слов в 1-й строке, остальное во 2-й
+  callTranslateAPI(cleanedRu, 'Official stamp text (short).')
+    .then(t => {
+      const translated = (t || '').trim();
+      const body = translated || fallbackEn;
+      setText('en_stamp_text', 'Seal: ' + wrapStampTwoLines(body, 8));
+    })
+    .catch(() => {
+      // оставляем fallback
+      setText('en_stamp_text', 'Seal: ' + wrapStampTwoLines(fallbackEn, 8));
+    });
+}
+
+
+    }
+
+    // ===== МОДАЛКИ =====
+    document.querySelectorAll('.hotspot').forEach(h => h.addEventListener('click', () => openModal(h.dataset.open)));
+    function openModal(id){ const m=document.getElementById('modal-'+id); if(m) m.style.display='flex'; }
+    function closeModal(id){ const m=document.getElementById('modal-'+id); if(m) m.style.display='none'; }
+
+    document.addEventListener('click', e => {
+      const btn = e.target.closest && e.target.closest('[data-close]');
+      if (btn) closeModal(btn.getAttribute('data-close'));
+    });
+    document.querySelectorAll('.modal').forEach(m => m.addEventListener('click', e => { if (e.target === m) m.style.display='none'; }));
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') ['b1','b2','b3'].forEach(closeModal); });
+
+    const b1MonEl = document.getElementById('b1-mon');
+    if (b1MonEl) {
+      b1MonEl.addEventListener('input', e => {
+        const v = e.target.value.trim();
+        if (/^\d{1,2}$/.test(v)) e.target.value = MONTHS_GEN[Math.min(12, Math.max(1, +v)) - 1];
+      });
+    }
+
+    // B1
+    function fillB1() {
+      const np = textOf('ru_namepatr').split(' ');
+      document.getElementById('b1-sur').value = textOf('ru_surname');
+      document.getElementById('b1-name').value = np[0] || '';
+      document.getElementById('b1-patr').value = np.slice(1).join(' ');
+
+      const d = textOf('ru_dob');
+      let dd='',mm='',yy='';
+      const m = /^(\d{1,2})\s*([А-Яа-яA-Za-z\.]+)\s*(\d{4})/.exec(d) || /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(d);
+      if (m) { dd=m[1]; mm=m[2]; yy=m[3]; }
+      document.getElementById('b1-day').value = dd;
+      document.getElementById('b1-mon').value = mm;
+      document.getElementById('b1-year').value = yy;
+    }
+    document.querySelectorAll('[data-open="b1"]').forEach(h => h.addEventListener('click', fillB1));
+
+    document.getElementById('b1-apply').addEventListener('click', () => {
+      const sur  = document.getElementById('b1-sur').value.trim();
+      const name = document.getElementById('b1-name').value.trim();
+      const patr = document.getElementById('b1-patr').value.trim();
+      const day  = document.getElementById('b1-day').value.trim();
+      const mon  = document.getElementById('b1-mon').value.trim();
+      const year = document.getElementById('b1-year').value.trim();
+      const type = document.getElementById('b1-type').value.trim() || 'г.';
+      const city = document.getElementById('b1-city').value.trim();
+      const reg  = document.getElementById('b1-region').value.trim();
+
+      const line1 = `${type} ${city}` + (reg ? `, ${reg}` : '');
+      setText('ru_surname', sur);
+      setText('ru_namepatr', [name, patr].filter(Boolean).join(' '));
+      setText('ru_dob', [day, mon, year].filter(Boolean).join(' ') + (year ? ' года' : ''));
+      setText('ru_place_line1', line1);
+      setText('ru_place_line2', 'Российская Федерация');
+
+      ['ru_surname','ru_namepatr','ru_dob','ru_place_line1','ru_place_line2'].forEach(k => sync(k, textOf(k)));
+      closeModal('b1');
+    });
+
+    // B2
+    function fillB2() {
+      document.getElementById('b2-year').value = textOf('ru_year');
+      document.getElementById('b2-mon').value  = textOf('ru_month');
+      document.getElementById('b2-day').value  = textOf('ru_day');
+      document.getElementById('b2-no').value   = textOf('ru_recordno');
+    }
+    document.querySelectorAll('[data-open="b2"]').forEach(h => h.addEventListener('click', fillB2));
+
+    document.getElementById('b2-apply').addEventListener('click', () => {
+      setText('ru_year',     document.getElementById('b2-year').value.trim());
+      setText('ru_month',    document.getElementById('b2-mon').value.trim());
+      setText('ru_day',      document.getElementById('b2-day').value.trim());
+      setText('ru_recordno', document.getElementById('b2-no').value.trim());
+      ['ru_year','ru_month','ru_day','ru_recordno'].forEach(k => sync(k, textOf(k)));
+      closeModal('b2');
+    });
+
+    // B3
+    function fillB3() {
+      document.getElementById('b3-f-sur').value   = textOf('ru_father_sur');
+      document.getElementById('b3-f-name').value  = textOf('ru_father_name');
+      document.getElementById('b3-f-nat').value   = textOf('ru_father_nat') || 'Гражданин РФ';
+
+      // ✅ отец: select + другое
+      setNationControls(
+        document.getElementById('b3-f-nation'),
+        document.getElementById('b3-f-nation-other'),
+        textOf('ru_father_nation') || ''
+      );
+
+      document.getElementById('b3-f-d').value = textOf('ru_father_dob_day')  || '';
+      document.getElementById('b3-f-m').value = textOf('ru_father_dob_mon')  || '';
+      document.getElementById('b3-f-y').value = textOf('ru_father_dob_year') || '';
+
+      document.getElementById('b3-m-sur').value   = textOf('ru_mother_sur');
+      document.getElementById('b3-m-name').value  = textOf('ru_mother_name');
+      document.getElementById('b3-m-nat').value   = textOf('ru_mother_nat') || 'Гражданка РФ';
+
+      // ✅ мать: select + другое
+      setNationControls(
+        document.getElementById('b3-m-nation'),
+        document.getElementById('b3-m-nation-other'),
+        textOf('ru_mother_nation') || ''
+      );
+
+      document.getElementById('b3-m-d').value = textOf('ru_mother_dob_day')  || '';
+      document.getElementById('b3-m-m').value = textOf('ru_mother_dob_mon')  || '';
+      document.getElementById('b3-m-y').value = textOf('ru_mother_dob_year') || '';
+
+      document.getElementById('b3-regplace').value  = (textOf('ru_regplace') || '').replace(/\n/g,' ');
+      document.getElementById('b3-regplace2').value = textOf('ru_regplace2');
+
+      document.getElementById('b3-id-day').value = textOf('ru_issue_day');
+      document.getElementById('b3-id-mon').value = textOf('ru_issue_month');
+      document.getElementById('b3-id-yr').value  = textOf('ru_issue_year');
+
+      document.getElementById('b3-ser').value   = textOf('ru_series');
+      document.getElementById('b3-num').value   = textOf('ru_number');
+      document.getElementById('b3-stamp').value = textOf('ru_stamp_text');
+      document.getElementById('b3-head').value  = textOf('ru_zags_head');
+    }
+    document.querySelectorAll('[data-open="b3"]').forEach(h => h.addEventListener('click', fillB3));
+
+    document.getElementById('b3-apply').addEventListener('click', () => {
+      setText('ru_father_sur',  document.getElementById('b3-f-sur').value.trim());
+      setText('ru_father_name', document.getElementById('b3-f-name').value.trim());
+      setText('ru_father_nat',  document.getElementById('b3-f-nat').value.trim());
+
+      // ✅ сохраняем национальность отца (select или other)
+      const fNation = getNationValue(
+        document.getElementById('b3-f-nation'),
+        document.getElementById('b3-f-nation-other')
+      );
+      setText('ru_father_nation', fNation);
+
+      setText('ru_father_dob_day',  document.getElementById('b3-f-d').value.trim());
+      setText('ru_father_dob_mon',  document.getElementById('b3-f-m').value.trim());
+      setText('ru_father_dob_year', document.getElementById('b3-f-y').value.trim());
+
+      setText('ru_mother_sur',  document.getElementById('b3-m-sur').value.trim());
+      setText('ru_mother_name', document.getElementById('b3-m-name').value.trim());
+      setText('ru_mother_nat',  document.getElementById('b3-m-nat').value.trim());
+
+      // ✅ сохраняем национальность матери (select или other)
+      const mNation = getNationValue(
+        document.getElementById('b3-m-nation'),
+        document.getElementById('b3-m-nation-other')
+      );
+      setText('ru_mother_nation', mNation);
+
+      setText('ru_mother_dob_day',  document.getElementById('b3-m-d').value.trim());
+      setText('ru_mother_dob_mon',  document.getElementById('b3-m-m').value.trim());
+      setText('ru_mother_dob_year', document.getElementById('b3-m-y').value.trim());
+
+      const regPlaceRaw = document.getElementById('b3-regplace').value.trim();
+      setText('ru_regplace', buildRegplaceHTML_5_8_9(regPlaceRaw));
+
+      setText('en_regplace', buildRegplaceHTML_5_8_9(tr(regPlaceRaw)));
+      callTranslateAPI(regPlaceRaw.replace(/\n/g,' '), 'Place of state registration on a birth certificate.')
+        .then(t => {
+          const txt = (t || '').trim() || tr(regPlaceRaw);
+          setText('en_regplace', buildRegplaceHTML_5_8_9(txt));
+        })
+        .catch(()=>{});
+
+      const issuePlaceRaw = document.getElementById('b3-regplace2').value.trim();
+      setText('ru_regplace2', buildRegplaceHTML_5_8_9(issuePlaceRaw));
+
+      setText('en_regplace2', buildRegplaceHTML_5_8_9(tr(issuePlaceRaw)));
+      callTranslateAPI(issuePlaceRaw.replace(/\n/g,' '), 'Place of state registration on a birth certificate.')
+        .then(t => {
+          const txt = (t || '').trim() || tr(issuePlaceRaw);
+          setText('en_regplace2', buildRegplaceHTML_5_8_9(txt));
+        })
+        .catch(()=>{});
+
+      setText('ru_issue_day',   document.getElementById('b3-id-day').value.trim());
+      setText('ru_issue_month', document.getElementById('b3-id-mon').value.trim());
+      setText('ru_issue_year',  document.getElementById('b3-id-yr').value.trim());
+
+      setText('ru_series',     document.getElementById('b3-ser').value.trim());
+      setText('ru_number',     document.getElementById('b3-num').value.trim());
+      setText('ru_stamp_text', document.getElementById('b3-stamp').value.trim());
+      setText('ru_zags_head',  document.getElementById('b3-head').value.trim());
+
+      [
+        'ru_father_sur','ru_father_name','ru_father_nat','ru_father_nation',
+        'ru_father_dob_day','ru_father_dob_mon','ru_father_dob_year',
+        'ru_mother_sur','ru_mother_name','ru_mother_nat','ru_mother_nation',
+        'ru_mother_dob_day','ru_mother_dob_mon','ru_mother_dob_year',
+        'ru_regplace','ru_regplace2',
+        'ru_issue_day','ru_issue_month','ru_issue_year',
+        'ru_series','ru_number','ru_stamp_text','ru_zags_head'
+      ].forEach(k => sync(k, textOf(k)));
+
+      closeModal('b3');
+    });
+
+    // ===== ОПЛАТА STRIPE =====
+    function collectFields() {
+      const data = {};
+      document.querySelectorAll('.field[data-k]').forEach(el => {
+        const k = el.getAttribute('data-k');
+        if (!k.startsWith("en_")) return;
+        data[k] = (el.innerText || '').trim();
+      });
+      return data;
+    }
+
+    async function startPayment() {
+      try {
+        const email = prompt("Введите email, на него придёт готовый PDF:");
+        if (!email) { alert("Без email оплату не запускаем."); return; }
+
+        const fields = collectFields();
+
+        const res = await fetch('/api/create-checkout-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, fields, template: CURRENT_TEMPLATE })
+        });
+
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          console.error('Ошибка ответа от сервера /api/create-checkout-session:', res.status, text);
+          alert('Сервер оплаты вернул ошибку: ' + res.status);
+          return;
+        }
+
+        const data = await res.json();
+        if (data.url) window.location.href = data.url;
+        else alert('Сервер не вернул ссылку на оплату (url). Проверь server.mjs.');
+      } catch (err) {
+        console.error('startPayment error:', err);
+        alert('Произошла ошибка в JavaScript. Открой F12 → Console, там будут подробности.');
+      }
+    }
+    window.startPayment = startPayment;
+
+    // =======================
+    // ВШИТЫЕ ПОЗИЦИИ (LAYOUT_POS)
+    // =======================
+    const LAYOUT_POS = {
+      "ru_surname":{"left":"19.7993%","top":"20.8495%","width":"59.9989%"},
+      "ru_namepatr":{"left":"19.7835%","top":"23.0119%","width":"59.9989%"},
+      "ru_dob":{"left":"30.1111%","top":"25.2687%","width":"39.9993%"},
+      "ru_dob_words":{"left":"27.3552%","top":"32.2318%","width":"39.9993%"},
+      "ru_place_line1":{"left":"12.6494%","top":"27.4672%","width":"75.9983%"},
+      "ru_place_line2":{"left":"12.2416%","top":"29.5612%","width":"75.9983%"},
+      "ru_year":{"left":"17.3070%","top":"34.0052%","width":"7.9988%"},
+      "ru_month":{"left":"38.4667%","top":"34.0065%","width":"11.9991%"},
+      "ru_day":{"left":"69.7290%","top":"33.9493%","width":"7.9988%"},
+      "ru_recordno":{"left":"34.0200%","top":"36.2633%","width":"39.9993%"},
+      "ru_father_sur":{"left":"20.3758%","top":"38.3710%","width":"59.9989%"},
+      "ru_father_name":{"left":"19.1999%","top":"40.6229%","width":"59.9989%"},
+      "ru_father_nat":{"left":"20.4443%","top":"42.8225%","width":"59.9989%"},
+      "ru_father_nation":{"left":"39.8569%","top":"44.9762%","width":"59.9989%"},
+      "ru_father_dob_day":{"left":"9.9445%","top":"45.0185%","width":"5.9987%"},
+      "ru_father_dob_mon":{"left":"21.4321%","top":"44.8917%","width":"17.9995%"},
+      "ru_father_dob_year":{"left":"42.1207%","top":"45.0185%","width":"9.9989%"},
+      "ru_mother_sur":{"left":"19.9100%","top":"52.1183%","width":"59.9989%"},
+      "ru_mother_name":{"left":"20.7994%","top":"54.4434%","width":"59.9989%"},
+      "ru_mother_nat":{"left":"19.5128%","top":"56.6369%","width":"59.9989%"},
+      "ru_mother_nation":{"left":"40.0344%","top":"56.1559%","width":"59.9989%"},
+      "ru_mother_dob_day":{"left":"10.1220%","top":"58.8403%","width":"5.9987%"},
+      "ru_mother_dob_mon":{"left":"22.3214%","top":"58.8403%","width":"17.9995%"},
+      "ru_mother_dob_year":{"left":"41.5864%","top":"58.7148%","width":"9.9989%"},
+      "ru_regplace":{"left":"15.4791%","top":"60.7665%","width":"69.9996%"},
+      "ru_regplace2":{"left":"18.6498%","top":"67.3730%","width":"69.9996%"},
+      "ru_issue_day":{"left":"29.8474%","top":"81.8646%","width":"5.9987%"},
+      "ru_issue_month":{"left":"40.3455%","top":"81.7925%","width":"13.9992%"},
+      "ru_issue_year":{"left":"62.3278%","top":"81.8646%","width":"9.9989%"},
+      "ru_zags_head":{"left":"35.1360%","top":"85.1343%","width":"59.9989%"},
+      "ru_stamp_text":{"left":"11.7425%","top":"87.3936%","width":"79.9986%"},
+      "ru_series":{"left":"38.0888%","top":"90.2643%","width":"11.9991%"},
+      "ru_number":{"left":"49.1687%","top":"90.2643%","width":"11.9991%"},
+      "en_surname":{"left":"19.9680%","top":"21.0496%","width":"59.9989%"},
+      "en_namepatr":{"left":"19.2386%","top":"23.0504%","width":"59.9989%"},
+      "en_dob":{"left":"26.7945%","top":"25.2439%","width":"45.9997%"},
+      "en_dob_words":{"left":"22.2617%","top":"16.8081%","width":"45.9997%"},
+      "en_place_line1":{"left":"11.6599%","top":"27.3044%","width":"75.9983%"},
+      "en_place_line2":{"left":"12.7988%","top":"29.5612%","width":"75.9983%"},
+      "en_year":{"left":"17.8782%","top":"34.0786%","width":"7.9988%"},
+      "en_month":{"left":"38.2716%","top":"33.9419%","width":"11.9991%"},
+      "en_day":{"left":"69.5726%","top":"34.0239%","width":"7.9988%"},
+      "en_recordno":{"left":"34.0850%","top":"36.2024%","width":"39.9993%"},
+      "en_father_sur":{"left":"20.5937%","top":"38.4257%","width":"59.9989%"},
+      "en_father_name":{"left":"20.3389%","top":"40.6241%","width":"59.9989%"},
+      "en_father_nat":{"left":"19.6270%","top":"42.7691%","width":"59.9989%"},
+      "en_father_nation":{"left":"40.0344%","top":"44.9762%","width":"59.9989%"},
+      "en_father_dob_day":{"left":"10.2116%","top":"45.0185%","width":"5.9987%"},
+      "en_father_dob_mon":{"left":"20.8978%","top":"45.0185%","width":"17.9995%"},
+      "en_father_dob_year":{"left":"42.1207%","top":"45.0185%","width":"9.9989%"},
+      "en_mother_sur":{"left":"20.2387%","top":"52.1183%","width":"59.9989%"},
+      "en_mother_name":{"left":"19.7307%","top":"54.4434%","width":"59.9989%"},
+      "en_mother_nat":{"left":"20.2650%","top":"56.5337%","width":"59.9989%"},
+      "en_mother_nation":{"left":"40.0344%","top":"58.6725%","width":"59.9989%"},
+      "en_mother_dob_day":{"left":"10.2116%","top":"58.8403%","width":"5.9987%"},
+      "en_mother_dob_mon":{"left":"20.7203%","top":"58.8403%","width":"17.9995%"},
+      "en_mother_dob_year":{"left":"41.0521%","top":"58.8403%","width":"9.9989%"},
+      "en_regplace":{"left":"7.7000%","top":"60.9219%","width":"69.9996%"},
+      "en_regplace2":{"left":"9.5244%","top":"67.4575%","width":"69.9996%"},
+      "en_issue_day":{"left":"40.6004%","top":"81.5937%","width":"5.9987%"},
+      "en_issue_month":{"left":"49.4200%","top":"81.5937%","width":"13.9992%"},
+      "en_issue_year":{"left":"61.7407%","top":"81.7205%","width":"9.9989%"},
+      "en_zags_head":{"left":"50.0874%","top":"84.9541%","width":"59.9989%"},
+      "en_stamp_text":{"left":"14.2804%","top":"87.6446%","width":"79.9986%"},
+      "en_series":{"left":"39.6882%","top":"90.1127%","width":"11.9991%"},
+      "en_number":{"left":"48.6590%","top":"90.2631%","width":"11.9991%"}
+    };
+
+    function applyLayoutPos(posObj) {
+      let applied = 0;
+      for (const [key, cfg] of Object.entries(posObj || {})) {
+        const el = document.querySelector(`.field[data-k="${key}"]`);
+        if (!el) continue;
+        if (cfg.left)  el.style.left  = cfg.left;
+        if (cfg.top)   el.style.top   = cfg.top;
+        if (cfg.width) el.style.width = cfg.width;
+        applied++;
+      }
+      console.log("✅ LAYOUT_POS applied:", applied, "fields");
+    }
+
+    window.addEventListener("load", () => applyLayoutPos(LAYOUT_POS));
+  </script>
+
+  <!-- ===== РЕЖИМ РАЗМЕТКИ (ALT+DRAG + exportLayout) ===== -->
+  <script>
+    (function () {
+      const fields = document.querySelectorAll(".field[data-k]");
+      fields.forEach((el) => {
+        if (!el.style.border) el.style.border = "1px dashed transparent";
+        el.addEventListener("mouseenter", () => { el.style.border = "1px dashed rgba(37,99,235,0.7)"; });
+        el.addEventListener("mouseleave", () => { el.style.border = "1px dashed transparent"; });
+      });
+
+      let dragState = null;
+
+      function onMouseDown(e) {
+        if (!e.altKey) return;
+        const el = e.currentTarget;
+        const cont = el.closest(".certificate");
+        if (!cont) return;
+        e.preventDefault();
+
+        const contRect = cont.getBoundingClientRect();
+        const elRect = el.getBoundingClientRect();
+
+        dragState = {
+          el,
+          contRect,
+          offsetX: e.clientX - elRect.left,
+          offsetY: e.clientY - elRect.top,
+        };
+
+        document.addEventListener("mousemove", onMouseMove);
+        document.addEventListener("mouseup", onMouseUp);
+      }
+
+      function onMouseMove(e) {
+        if (!dragState) return;
+        const { el, contRect, offsetX, offsetY } = dragState;
+
+        let x = e.clientX - offsetX - contRect.left;
+        let y = e.clientY - offsetY - contRect.top;
+
+        x = Math.max(0, x);
+        y = Math.max(0, y);
+
+        const maxX = contRect.width - el.offsetWidth;
+        const maxY = contRect.height - el.offsetHeight;
+        x = Math.min(maxX, x);
+        y = Math.min(maxY, y);
+
+        el.style.left = ((x / contRect.width) * 100).toFixed(4) + "%";
+        el.style.top  = ((y / contRect.height) * 100).toFixed(4) + "%";
+      }
+
+      function onMouseUp() {
+        if (!dragState) return;
+        const { el, contRect } = dragState;
+        dragState = null;
+
+        document.removeEventListener("mousemove", onMouseMove);
+        document.removeEventListener("mouseup", onMouseUp);
+
+        const elRect = el.getBoundingClientRect();
+        const leftP  = ((elRect.left - contRect.left) / contRect.width) * 100;
+        const topP   = ((elRect.top  - contRect.top)  / contRect.height) * 100;
+        const widthP = (elRect.width / contRect.width) * 100;
+
+        console.log("FIELD", el.dataset.k || "(no data-k)", {
+          left:  leftP.toFixed(4) + "%",
+          top:   topP.toFixed(4) + "%",
+          width: widthP.toFixed(4) + "%",
+        });
+      }
+
+      fields.forEach((el) => el.addEventListener("mousedown", onMouseDown));
+
+      window.exportLayout = function () {
+        const layout = {};
+        document.querySelectorAll(".field[data-k]").forEach((el) => {
+          const key = el.dataset.k;
+          const cont = el.closest(".certificate");
+          if (!cont) return;
+          const contRect = cont.getBoundingClientRect();
+          const elRect = el.getBoundingClientRect();
+
+          const leftP  = ((elRect.left - contRect.left) / contRect.width) * 100;
+          const topP   = ((elRect.top  - contRect.top)  / contRect.height) * 100;
+          const widthP = (elRect.width / contRect.width) * 100;
+
+          layout[key] = {
+            left:  leftP.toFixed(4) + "%",
+            top:   topP.toFixed(4) + "%",
+            width: widthP.toFixed(4) + "%",
+          };
+        });
+        console.log("LAYOUT_POS =", JSON.stringify(layout, null, 2));
+        alert("Готово! Открой F12 → Console и скопируй LAYOUT_POS.");
+      };
+    })();
+  </script>
+
+  <!-- ===== ПРИМЕНЕНИЕ КООРДИНАТ СССР (если есть файл) ===== -->
+  <script>
+    async function applyUssrPositions() {
+      try {
+        const res = await fetch("layout-positions-ussr.json", { cache: "no-store" });
+        if (!res.ok) { console.warn("USSR layout not found:", res.status); return; }
+        const data = await res.json();
+        if (!data || !data.pos) { console.warn("USSR layout: no pos{} block"); return; }
+        Object.entries(data.pos).forEach(([key, cfg]) => {
+          const el = document.querySelector(`.field[data-k="${key}"]`);
+          if (!el) return;
+          if (cfg.left)  el.style.left  = cfg.left;
+          if (cfg.top)   el.style.top   = cfg.top;
+          if (cfg.width) el.style.width = cfg.width;
+        });
+        console.log("USSR POS APPLIED");
+      } catch (e) {
+        console.warn("applyUssrPositions error", e);
+      }
+    }
+    window.addEventListener("load", () => {
+      if (window.CURRENT_TEMPLATE === "ussr") applyUssrPositions();
+    });
+  </script>
+
+</body>
+</html>
