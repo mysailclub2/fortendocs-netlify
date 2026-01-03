@@ -81,15 +81,16 @@ export const handler = async (event) => {
   }
 
   // ожидаем: { fields: {...} }
-  const fields = payload.fields && typeof payload.fields === "object" ? payload.fields : {};
+  const fields =
+    payload.fields && typeof payload.fields === "object" ? payload.fields : {};
 
-  // --- пути (Netlify запускает из корня репозитория) ---
-  const ROOT = process.cwd();
-  const PUBLIC_DIR = path.join(ROOT, "public");
-  const LAYOUT_PATH = path.join(ROOT, "layout-positions.json");
-  const BG_PATH = path.join(PUBLIC_DIR, "bg_en_rf.png");
-  const SEAL_PATH = path.join(PUBLIC_DIR, "seal.png");
-  const CYR_TTF_PATH = path.join(ROOT, "fonts", "DejaVuSerif.ttf");
+  // ✅ ЖЁСТКИЕ ПУТИ ДЛЯ NETLIFY FUNCTIONS (чтобы не зависеть от cwd)
+  const ROOT = "/var/task";
+  const PUBLIC_DIR = "/var/task/public";
+  const LAYOUT_PATH = "/var/task/layout-positions.json";
+  const BG_PATH = "/var/task/public/bg_en_rf.png";
+  const SEAL_PATH = "/var/task/public/seal.png";
+  const CYR_TTF_PATH = "/var/task/fonts/DejaVuSerif.ttf";
 
   // --- load layout positions ---
   let FIELD_POS = {};
@@ -106,7 +107,18 @@ export const handler = async (event) => {
     return jsonResponse(500, {
       error: "layout_load_failed",
       message: String(e?.message || e),
-      expected_path: "layout-positions.json in repo root",
+      expected_path: "layout-positions.json in repo root (packed into /var/task)",
+      debug: {
+        LAYOUT_PATH,
+        exists: fs.existsSync(LAYOUT_PATH),
+        root_list: (() => {
+          try {
+            return fs.readdirSync(ROOT);
+          } catch (err) {
+            return ["ERR: " + String(err?.message || err)];
+          }
+        })(),
+      },
     });
   }
 
@@ -177,7 +189,7 @@ export const handler = async (event) => {
       }
     }
 
-    // ===== DRAW HELPERS (как у тебя) =====
+    // ===== DRAW HELPERS =====
     const X_OFFSET = 0.0;
     const Y_OFFSET = 0.014;
 
@@ -290,7 +302,6 @@ export const handler = async (event) => {
       const cfg = FIELD_POS[key];
       if (!cfg) return;
 
-      // как у тебя
       if (key === "en_dob_words") return;
 
       const value = cleanText(fields[key]);
@@ -306,7 +317,7 @@ export const handler = async (event) => {
 
       let fontSize = BASE_SIZE * FONT_SCALE;
 
-      // только PDF: серия/номер меньше
+      // ✅ только PDF: серия/номер меньше
       if (key === "en_series") {
         fontSize = fontSize * 0.85;
       }
