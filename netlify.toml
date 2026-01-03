@@ -1,12 +1,12 @@
 [build]
   publish = "public"
-  functions = "netlify/functions"
 
-# ✅ Включить все файлы в деплой
-[build.processing]
-  skip_processing = false
+[functions]
+  node_bundler = "esbuild"
+  included_files = [
+    "layout-positions.json",
+    "public/bg_en_rf.jpg",
+    "public/seal.png",
+    "fonts/*.ttf"
+  ]
 
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
