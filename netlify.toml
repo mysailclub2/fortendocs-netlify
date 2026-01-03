@@ -2,10 +2,11 @@
   publish = "public"
   functions = "netlify/functions"
 
-[functions]
-  included_files = [
-    "layout-positions.json",
-    "public/bg_en_rf.png",
-    "public/seal.png",
-    "fonts/**"
-  ]
+# ✅ Включить все файлы в деплой
+[build.processing]
+  skip_processing = false
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
