@@ -57,6 +57,7 @@ function hasCyrillic(s) {
 }
 
 export const handler = async (event) => {
+  // CORS preflight
   if (event.httpMethod === "OPTIONS") {
     return {
       statusCode: 204,
@@ -84,11 +85,11 @@ export const handler = async (event) => {
   const fields =
     payload.fields && typeof payload.fields === "object" ? payload.fields : {};
 
-  // ✅ ЖЁСТКИЕ ПУТИ ДЛЯ NETLIFY FUNCTIONS (чтобы не зависеть от cwd)
+  // ✅ ЖЁСТКИЕ ПУТИ ДЛЯ NETLIFY FUNCTIONS
   const ROOT = "/var/task";
   const PUBLIC_DIR = "/var/task/public";
   const LAYOUT_PATH = "/var/task/layout-positions.json";
-  const BG_PATH = "/var/task/public/bg_en_rf.jpg";
+  const BG_PATH = "/var/task/public/bg_en_rf.jpg"; // ✅ JPG
   const SEAL_PATH = "/var/task/public/seal.png";
   const CYR_TTF_PATH = "/var/task/fonts/DejaVuSerif.ttf";
 
@@ -134,22 +135,18 @@ export const handler = async (event) => {
     const height = page.getHeight();
 
     // ===== 1) BACKGROUND =====
+    // ✅ ВАЖНО: рисуем фон строго НА ВЕСЬ A4, иначе поля "едут"
     if (fs.existsSync(BG_PATH)) {
       const bgBytes = fs.readFileSync(BG_PATH);
-      let bgImg;
-      try {
-        bgImg = await pdfDoc.embedPng(bgBytes);
-      } catch {
-        bgImg = await pdfDoc.embedJpg(bgBytes);
-      }
 
-      const s = Math.min(width / bgImg.width, height / bgImg.height);
-      const dw = bgImg.width * s;
-      const dh = bgImg.height * s;
-      const dx = (width - dw) / 2;
-      const dy = (height - dh) / 2;
+      // ✅ это JPG => embedJpg
+      const bgImg = await pdfDoc.embedJpg(bgBytes);
 
-      page.drawImage(bgImg, { x: dx, y: dy, width: dw, height: dh });
+      // ✅ stretch to full page
+      page.drawImage(bgImg, { x: 0, y: 0, width, height });
+    } else {
+      console.warn("BG NOT FOUND:", BG_PATH);
+      console.warn("PUBLIC_DIR list:", fs.existsSync(PUBLIC_DIR) ? fs.readdirSync(PUBLIC_DIR) : "NO_PUBLIC_DIR");
     }
 
     // ===== 2) SEAL =====
@@ -190,6 +187,7 @@ export const handler = async (event) => {
     }
 
     // ===== DRAW HELPERS =====
+    // ⚠️ эти оффсеты остаются как у тебя; теперь после правильного фона смещения обычно пропадают
     const X_OFFSET = 0.0;
     const Y_OFFSET = 0.014;
 
