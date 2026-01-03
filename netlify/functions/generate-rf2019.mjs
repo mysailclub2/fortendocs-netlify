@@ -10,7 +10,7 @@ function jsonResponse(statusCode, obj, extraHeaders = {}) {
       "Content-Type": "application/json; charset=utf-8",
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Headers": "Content-Type",
-      "Access-Control-Allow-Methods": "POST,OPTIONS",
+      "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
       ...extraHeaders,
     },
     body: JSON.stringify(obj),
@@ -56,6 +56,23 @@ function hasCyrillic(s) {
   return /[А-ЯЁа-яё]/.test(String(s || ""));
 }
 
+function statSafe(p) {
+  try {
+    const s = fs.statSync(p);
+    return { exists: true, size: s.size, mtime: s.mtime };
+  } catch (e) {
+    return { exists: false, err: String(e?.message || e) };
+  }
+}
+
+function listDirSafe(p) {
+  try {
+    return { exists: fs.existsSync(p), items: fs.readdirSync(p) };
+  } catch (e) {
+    return { exists: false, err: String(e?.message || e) };
+  }
+}
+
 function pickFirstExisting(paths) {
   for (const p of paths) {
     try {
@@ -66,25 +83,79 @@ function pickFirstExisting(paths) {
 }
 
 export const handler = async (event) => {
+  // CORS preflight
   if (event.httpMethod === "OPTIONS") {
     return {
       statusCode: 204,
       headers: {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Headers": "Content-Type",
-        "Access-Control-Allow-Methods": "POST,OPTIONS",
+        "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
       },
       body: "",
     };
   }
 
-  // diag=1 → показать что реально видит Netlify
+  // ---- DIAG: разрешаем и GET и POST ----
   const isDiag =
     (event.queryStringParameters && event.queryStringParameters.diag === "1") ||
     (event.rawQuery && String(event.rawQuery).includes("diag=1"));
 
+  // ✅ Netlify runtime root
+  const ROOT = "/var/task";
+  const PUBLIC_DIR = path.join(ROOT, "public");
+
+  // ✅ ВАЖНО: у тебя фон лежит в assets_rf2019, а не в public
+  const ASSETS_DIR = path.join(ROOT, "assets_rf2019");
+
+  const LAYOUT_PATH = path.join(ROOT, "layout-positions.json");
+
+  // Печать — обычно в public
+  const SEAL_PATH = path.join(PUBLIC_DIR, "seal.png");
+
+  // Шрифты — в fonts
+  const CYR_TTF_PATH = path.join(ROOT, "fonts", "DejaVuSerif.ttf");
+
+  // Фон: ищем и в public и в assets_rf2019 (jpg/jpeg/png)
+  const BG_PICKED = pickFirstExisting([
+    path.join(PUBLIC_DIR, "bg_en_rf.jpg"),
+    path.join(PUBLIC_DIR, "bg_en_rf.jpeg"),
+    path.join(PUBLIC_DIR, "bg_en_rf.png"),
+    path.join(ASSETS_DIR, "bg_en_rf.jpg"),
+    path.join(ASSETS_DIR, "bg_en_rf.jpeg"),
+    path.join(ASSETS_DIR, "bg_en_rf.png"),
+  ]);
+
+  if (isDiag) {
+    return jsonResponse(200, {
+      httpMethod: event.httpMethod,
+      cwd: process.cwd(),
+      ROOT,
+      PUBLIC_DIR,
+      ASSETS_DIR,
+      root_list: listDirSafe(ROOT),
+      public_list: listDirSafe(PUBLIC_DIR),
+      assets_list: listDirSafe(ASSETS_DIR),
+      picked: {
+        layout: LAYOUT_PATH,
+        bg: BG_PICKED,
+        seal: SEAL_PATH,
+        font: CYR_TTF_PATH,
+      },
+      stat: {
+        layout: statSafe(LAYOUT_PATH),
+        bg: BG_PICKED ? statSafe(BG_PICKED) : { exists: false, err: "not_found" },
+        seal: statSafe(SEAL_PATH),
+        font: statSafe(CYR_TTF_PATH),
+      },
+      note:
+        "Если bg exists=false — значит фон не попал в бандл функции. Тогда нужно перенести фон в repo (не только в publish), или добавить included_files в netlify.toml.",
+    });
+  }
+
+  // ---- обычная работа: только POST ----
   if (event.httpMethod !== "POST") {
-    return jsonResponse(405, { error: "method_not_allowed" });
+    return jsonResponse(405, { error: "method_not_allowed", need: "POST or ?diag=1" });
   }
 
   let payload = {};
@@ -94,62 +165,7 @@ export const handler = async (event) => {
     return jsonResponse(400, { error: "bad_json" });
   }
 
-  const fields =
-    payload.fields && typeof payload.fields === "object" ? payload.fields : {};
-
-  // ✅ Netlify functions runtime root
-  const ROOT = "/var/task";
-  const PUBLIC_DIR = path.join(ROOT, "public");
-  const LAYOUT_PATH = path.join(ROOT, "layout-positions.json");
-  const SEAL_PATH = path.join(PUBLIC_DIR, "seal.png");
-  const CYR_TTF_PATH = path.join(ROOT, "fonts", "DejaVuSerif.ttf");
-
-  // ✅ выбираем фон: JPG приоритетнее PNG
-  const BG_PICKED = pickFirstExisting([
-    path.join(PUBLIC_DIR, "bg_en_rf.jpg"),
-    path.join(PUBLIC_DIR, "bg_en_rf.jpeg"),
-    path.join(PUBLIC_DIR, "bg_en_rf.png"),
-  ]);
-
-  if (isDiag) {
-    const listDir = (p) => {
-      try {
-        return { exists: fs.existsSync(p), items: fs.readdirSync(p) };
-      } catch (e) {
-        return { exists: false, error: String(e?.message || e) };
-      }
-    };
-
-    const stat = (p) => {
-      try {
-        if (!p) return null;
-        const s = fs.statSync(p);
-        return { path: p, bytes: s.size };
-      } catch (e) {
-        return { path: p, error: String(e?.message || e) };
-      }
-    };
-
-    return jsonResponse(200, {
-      cwd: process.cwd(),
-      ROOT,
-      PUBLIC_DIR,
-      root_list: listDir(ROOT),
-      public_list: listDir(PUBLIC_DIR),
-      files: {
-        layout: stat(LAYOUT_PATH),
-        bg: stat(BG_PICKED),
-        seal: stat(SEAL_PATH),
-        font: stat(CYR_TTF_PATH),
-      },
-      bg_candidates: [
-        path.join(PUBLIC_DIR, "bg_en_rf.jpg"),
-        path.join(PUBLIC_DIR, "bg_en_rf.jpeg"),
-        path.join(PUBLIC_DIR, "bg_en_rf.png"),
-      ],
-      bg_picked: BG_PICKED,
-    });
-  }
+  const fields = payload.fields && typeof payload.fields === "object" ? payload.fields : {};
 
   // --- load layout positions ---
   let FIELD_POS = {};
@@ -171,6 +187,14 @@ export const handler = async (event) => {
   }
 
   try {
+    if (!BG_PICKED || !fs.existsSync(BG_PICKED)) {
+      return jsonResponse(500, {
+        error: "bg_not_found",
+        message:
+          "Фон не найден внутри функции. Положи bg_en_rf.jpg (или png) в /public ИЛИ /assets_rf2019 в репозитории, и redeploy.",
+      });
+    }
+
     const pdfDoc = await PDFDocument.create();
     pdfDoc.registerFontkit(fontkit);
 
@@ -181,24 +205,14 @@ export const handler = async (event) => {
     const width = page.getWidth();
     const height = page.getHeight();
 
-    // ===== 1) BACKGROUND (рисуем на всю A4) =====
-    if (BG_PICKED && fs.existsSync(BG_PICKED)) {
+    // ===== 1) BACKGROUND: рисуем НА ВСЮ СТРАНИЦУ (это важно для совпадения с layout %) =====
+    {
       const bgBytes = fs.readFileSync(BG_PICKED);
       let bgImg;
-      if (BG_PICKED.toLowerCase().endsWith(".png")) {
-        bgImg = await pdfDoc.embedPng(bgBytes);
-      } else {
-        bgImg = await pdfDoc.embedJpg(bgBytes);
-      }
-      // ВАЖНО: на всю страницу A4, чтобы совпадало с layout-positions
+      if (BG_PICKED.toLowerCase().endsWith(".png")) bgImg = await pdfDoc.embedPng(bgBytes);
+      else bgImg = await pdfDoc.embedJpg(bgBytes);
+
       page.drawImage(bgImg, { x: 0, y: 0, width, height });
-    } else {
-      // если нет фона — лучше явно сообщить
-      return jsonResponse(500, {
-        error: "bg_not_found",
-        message:
-          "No background found. Put bg_en_rf.jpg into /public and redeploy.",
-      });
     }
 
     // ===== 2) SEAL =====
@@ -308,9 +322,7 @@ export const handler = async (event) => {
         .filter(Boolean);
 
       if (words.length <= firstLineWords) return [words.join(" ")];
-      const line1 = words.slice(0, firstLineWords).join(" ");
-      const line2 = words.slice(firstLineWords).join(" ");
-      return [line1, line2];
+      return [words.slice(0, firstLineWords).join(" "), words.slice(firstLineWords).join(" ")];
     }
 
     function drawStamp2Lines(key, value) {
@@ -354,19 +366,10 @@ export const handler = async (event) => {
       const y = height - (topRatio + Y_OFFSET) * height;
 
       let fontSize = BASE_SIZE * FONT_SCALE;
-
-      // только PDF: серия/номер меньше
       if (key === "en_series") fontSize *= 0.85;
 
-      if (key === "en_regplace" || key === "en_regplace2") {
-        drawRegplace_5_8_9(key, value);
-        return;
-      }
-
-      if (key === "en_stamp_text") {
-        drawStamp2Lines(key, fields[key]);
-        return;
-      }
+      if (key === "en_regplace" || key === "en_regplace2") return drawRegplace_5_8_9(key, value);
+      if (key === "en_stamp_text") return drawStamp2Lines(key, fields[key]);
 
       drawInBox({
         text: value,
@@ -380,9 +383,7 @@ export const handler = async (event) => {
     }
 
     const keys = Object.keys(fields).filter((k) => String(k).startsWith("en_"));
-    for (const key of keys) {
-      if (FIELD_POS[key]) drawField(key);
-    }
+    for (const key of keys) if (FIELD_POS[key]) drawField(key);
 
     const pdfBytes = await pdfDoc.save();
 
