@@ -88,7 +88,7 @@ export const handler = async (event) => {
   const ROOT = "/var/task";
   const PUBLIC_DIR = "/var/task/public";
   const LAYOUT_PATH = "/var/task/layout-positions.json";
-  const BG_PATH = "/var/task/public/bg_en_rf.png";
+  const BG_PATH = "/var/task/public/bg_en_rf.jpg";
   const SEAL_PATH = "/var/task/public/seal.png";
   const CYR_TTF_PATH = "/var/task/fonts/DejaVuSerif.ttf";
 
