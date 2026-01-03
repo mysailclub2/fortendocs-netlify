@@ -5,8 +5,6 @@
   node_bundler = "esbuild"
   included_files = [
     "layout-positions.json",
-    "public/bg_en_rf.jpg",
-    "public/seal.png",
-    "fonts/*.ttf"
+    "public/*",
+    "fonts/*"
   ]
-
