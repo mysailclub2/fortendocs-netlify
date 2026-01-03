@@ -10,7 +10,7 @@ function jsonResponse(statusCode, obj, extraHeaders = {}) {
       "Content-Type": "application/json; charset=utf-8",
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Headers": "Content-Type",
-      "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+      "Access-Control-Allow-Methods": "POST,OPTIONS",
       ...extraHeaders,
     },
     body: JSON.stringify(obj),
@@ -56,25 +56,6 @@ function hasCyrillic(s) {
   return /[А-ЯЁа-яё]/.test(String(s || ""));
 }
 
-function listDirSafe(p) {
-  try {
-    if (!fs.existsSync(p)) return { exists: false, items: [] };
-    return { exists: true, items: fs.readdirSync(p) };
-  } catch (e) {
-    return { exists: false, items: ["ERR: " + String(e?.message || e)] };
-  }
-}
-
-function statSafe(p) {
-  try {
-    if (!fs.existsSync(p)) return null;
-    const st = fs.statSync(p);
-    return { size: st.size, mtime: st.mtime?.toISOString?.() || String(st.mtime) };
-  } catch {
-    return null;
-  }
-}
-
 function pickFirstExisting(paths) {
   for (const p of paths) {
     try {
@@ -91,62 +72,16 @@ export const handler = async (event) => {
       headers: {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Headers": "Content-Type",
-        "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+        "Access-Control-Allow-Methods": "POST,OPTIONS",
       },
       body: "",
     };
   }
 
-  // ✅ Жёсткие пути Netlify runtime
-  const ROOT = "/var/task";
-  const PUBLIC_DIR = path.join(ROOT, "public");
-
-  const LAYOUT_PATH = path.join(ROOT, "layout-positions.json");
-
-  // Ищем фон в нескольких местах (на случай, если ты держишь его в assets_rf2019)
-  const BG_CANDIDATES = [
-    path.join(PUBLIC_DIR, "bg_en_rf.jpg"),
-    path.join(PUBLIC_DIR, "bg_en_rf.jpeg"),
-    path.join(PUBLIC_DIR, "bg_en_rf.png"),
-    path.join(ROOT, "assets_rf2019", "bg_en_rf.jpg"),
-    path.join(ROOT, "assets_rf2019", "bg_en_rf.jpeg"),
-    path.join(ROOT, "assets_rf2019", "bg_en_rf.png"),
-  ];
-
-  const SEAL_CANDIDATES = [
-    path.join(PUBLIC_DIR, "seal.png"),
-    path.join(ROOT, "assets_rf2019", "seal.png"),
-  ];
-
-  const CYR_TTF_CANDIDATES = [
-    path.join(ROOT, "fonts", "DejaVuSerif.ttf"),
-    path.join(ROOT, "fonts", "DejaVuSerif-Bold.ttf"),
-  ];
-
-  const BG_PATH = pickFirstExisting(BG_CANDIDATES);
-  const SEAL_PATH = pickFirstExisting(SEAL_CANDIDATES);
-  const CYR_TTF_PATH = pickFirstExisting(CYR_TTF_CANDIDATES);
-
-  // ✅ DIAG режим: GET или POST с ?diag=1 вернёт что реально есть в /var/task
-  const qs = event.queryStringParameters || {};
-  const wantDiag = event.httpMethod === "GET" || String(qs.diag || "") === "1";
-
-  if (wantDiag) {
-    return jsonResponse(200, {
-      cwd: process.cwd(),
-      ROOT,
-      PUBLIC_DIR,
-      root_list: listDirSafe(ROOT),
-      public_list: listDirSafe(PUBLIC_DIR),
-      assets_list: listDirSafe(path.join(ROOT, "assets_rf2019")),
-      fonts_list: listDirSafe(path.join(ROOT, "fonts")),
-      layout: { path: LAYOUT_PATH, stat: statSafe(LAYOUT_PATH) },
-      bg: { picked: BG_PATH, candidates: BG_CANDIDATES.map((p) => ({ p, stat: statSafe(p) })) },
-      seal: { picked: SEAL_PATH, candidates: SEAL_CANDIDATES.map((p) => ({ p, stat: statSafe(p) })) },
-      font: { picked: CYR_TTF_PATH, candidates: CYR_TTF_CANDIDATES.map((p) => ({ p, stat: statSafe(p) })) },
-      note: "Если BG_PATH = null или stat = null — значит файл не попал в бандл функции. Тогда нужен netlify.toml included_files.",
-    });
-  }
+  // diag=1 → показать что реально видит Netlify
+  const isDiag =
+    (event.queryStringParameters && event.queryStringParameters.diag === "1") ||
+    (event.rawQuery && String(event.rawQuery).includes("diag=1"));
 
   if (event.httpMethod !== "POST") {
     return jsonResponse(405, { error: "method_not_allowed" });
@@ -161,6 +96,60 @@ export const handler = async (event) => {
 
   const fields =
     payload.fields && typeof payload.fields === "object" ? payload.fields : {};
+
+  // ✅ Netlify functions runtime root
+  const ROOT = "/var/task";
+  const PUBLIC_DIR = path.join(ROOT, "public");
+  const LAYOUT_PATH = path.join(ROOT, "layout-positions.json");
+  const SEAL_PATH = path.join(PUBLIC_DIR, "seal.png");
+  const CYR_TTF_PATH = path.join(ROOT, "fonts", "DejaVuSerif.ttf");
+
+  // ✅ выбираем фон: JPG приоритетнее PNG
+  const BG_PICKED = pickFirstExisting([
+    path.join(PUBLIC_DIR, "bg_en_rf.jpg"),
+    path.join(PUBLIC_DIR, "bg_en_rf.jpeg"),
+    path.join(PUBLIC_DIR, "bg_en_rf.png"),
+  ]);
+
+  if (isDiag) {
+    const listDir = (p) => {
+      try {
+        return { exists: fs.existsSync(p), items: fs.readdirSync(p) };
+      } catch (e) {
+        return { exists: false, error: String(e?.message || e) };
+      }
+    };
+
+    const stat = (p) => {
+      try {
+        if (!p) return null;
+        const s = fs.statSync(p);
+        return { path: p, bytes: s.size };
+      } catch (e) {
+        return { path: p, error: String(e?.message || e) };
+      }
+    };
+
+    return jsonResponse(200, {
+      cwd: process.cwd(),
+      ROOT,
+      PUBLIC_DIR,
+      root_list: listDir(ROOT),
+      public_list: listDir(PUBLIC_DIR),
+      files: {
+        layout: stat(LAYOUT_PATH),
+        bg: stat(BG_PICKED),
+        seal: stat(SEAL_PATH),
+        font: stat(CYR_TTF_PATH),
+      },
+      bg_candidates: [
+        path.join(PUBLIC_DIR, "bg_en_rf.jpg"),
+        path.join(PUBLIC_DIR, "bg_en_rf.jpeg"),
+        path.join(PUBLIC_DIR, "bg_en_rf.png"),
+      ],
+      bg_picked: BG_PICKED,
+    });
+  }
 
   // --- load layout positions ---
   let FIELD_POS = {};
@@ -178,10 +167,6 @@ export const handler = async (event) => {
       error: "layout_load_failed",
       message: String(e?.message || e),
       expected_path: "/var/task/layout-positions.json",
-      debug: {
-        layout_exists: fs.existsSync(LAYOUT_PATH),
-        root_list: listDirSafe(ROOT),
-      },
     });
   }
 
@@ -196,55 +181,51 @@ export const handler = async (event) => {
     const width = page.getWidth();
     const height = page.getHeight();
 
-    // ===== 1) BACKGROUND (строго на A4) =====
-    let bgOk = false;
-    if (BG_PATH) {
-      try {
-        const bgBytes = fs.readFileSync(BG_PATH);
-        const isJpg = /\.(jpe?g)$/i.test(BG_PATH);
-        const bgImg = isJpg ? await pdfDoc.embedJpg(bgBytes) : await pdfDoc.embedPng(bgBytes);
-        page.drawImage(bgImg, { x: 0, y: 0, width, height });
-        bgOk = true;
-      } catch (e) {
-        bgOk = false;
-        page.drawText("BG LOAD FAILED", { x: 20, y: height - 20, size: 10, font: await pdfDoc.embedFont(StandardFonts.Helvetica) });
+    // ===== 1) BACKGROUND (рисуем на всю A4) =====
+    if (BG_PICKED && fs.existsSync(BG_PICKED)) {
+      const bgBytes = fs.readFileSync(BG_PICKED);
+      let bgImg;
+      if (BG_PICKED.toLowerCase().endsWith(".png")) {
+        bgImg = await pdfDoc.embedPng(bgBytes);
+      } else {
+        bgImg = await pdfDoc.embedJpg(bgBytes);
       }
+      // ВАЖНО: на всю страницу A4, чтобы совпадало с layout-positions
+      page.drawImage(bgImg, { x: 0, y: 0, width, height });
     } else {
-      page.drawText("BG NOT FOUND", { x: 20, y: height - 20, size: 10, font: await pdfDoc.embedFont(StandardFonts.Helvetica) });
+      // если нет фона — лучше явно сообщить
+      return jsonResponse(500, {
+        error: "bg_not_found",
+        message:
+          "No background found. Put bg_en_rf.jpg into /public and redeploy.",
+      });
     }
 
     // ===== 2) SEAL =====
-    if (SEAL_PATH) {
-      try {
-        const sealBytes = fs.readFileSync(SEAL_PATH);
-        let sealImg;
-        try {
-          sealImg = await pdfDoc.embedPng(sealBytes);
-        } catch {
-          sealImg = await pdfDoc.embedJpg(sealBytes);
-        }
+    if (fs.existsSync(SEAL_PATH)) {
+      const sealBytes = fs.readFileSync(SEAL_PATH);
+      const sealImg = await pdfDoc.embedPng(sealBytes);
 
-        const sealW_base = 200;
-        const sealH_base = 140;
-        const scale = 0.95;
-        const sealW = sealW_base * scale;
-        const sealH = sealH_base * scale;
-        const dyUp = 20;
+      const sealW_base = 200;
+      const sealH_base = 140;
+      const scale = 0.95;
+      const sealW = sealW_base * scale;
+      const sealH = sealH_base * scale;
+      const dyUp = 20;
 
-        page.drawImage(sealImg, {
-          x: width - sealW - 40,
-          y: height - sealH - 40 + dyUp,
-          width: sealW,
-          height: sealH,
-        });
-      } catch {}
+      page.drawImage(sealImg, {
+        x: width - sealW - 40,
+        y: height - sealH - 40 + dyUp,
+        width: sealW,
+        height: sealH,
+      });
     }
 
     // ===== 3) FONTS =====
     const fontEN = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
 
     let fontCYR = null;
-    if (CYR_TTF_PATH) {
+    if (fs.existsSync(CYR_TTF_PATH)) {
       try {
         fontCYR = await pdfDoc.embedFont(fs.readFileSync(CYR_TTF_PATH));
       } catch {
@@ -252,9 +233,9 @@ export const handler = async (event) => {
       }
     }
 
-    // ===== OFFSETS (убрали магию 0.014) =====
-    const X_OFFSET = Number(process.env.PDF_X_OFFSET || 0);
-    const Y_OFFSET = Number(process.env.PDF_Y_OFFSET || 0);
+    // ===== DRAW HELPERS =====
+    const X_OFFSET = Number(process.env.PDF_X_OFFSET || 0.0);
+    const Y_OFFSET = Number(process.env.PDF_Y_OFFSET || 0.014);
 
     const FONT_SCALE = Number(process.env.PDF_FONT_SCALE || 1.2);
     const BASE_SIZE = 12;
@@ -277,7 +258,6 @@ export const handler = async (event) => {
       if (hasCyr && !allowCyrillic) return;
 
       const usedFont = hasCyr ? (fontCYR || fontEN) : fontEN;
-
       const s = fitSize(t, size, 8, boxW, usedFont);
       const tw = usedFont.widthOfTextAtSize(t, s);
 
@@ -307,7 +287,6 @@ export const handler = async (event) => {
 
       const xLeft = (leftRatio + X_OFFSET) * width;
       const boxW = widthRatio * width;
-
       const yTop = height - (topRatio + Y_OFFSET) * height;
 
       const size = BASE_SIZE * FONT_SCALE;
@@ -329,7 +308,6 @@ export const handler = async (event) => {
         .filter(Boolean);
 
       if (words.length <= firstLineWords) return [words.join(" ")];
-
       const line1 = words.slice(0, firstLineWords).join(" ");
       const line2 = words.slice(firstLineWords).join(" ");
       return [line1, line2];
@@ -345,7 +323,6 @@ export const handler = async (event) => {
 
       const xLeft = (leftRatio + X_OFFSET) * width;
       const boxW = widthRatio * width;
-
       const yTop = height - (topRatio + Y_OFFSET) * height;
 
       const normalSize = BASE_SIZE * FONT_SCALE;
@@ -355,7 +332,6 @@ export const handler = async (event) => {
       const lineH = stampSize * 1.2;
 
       drawInBox({ text: lines[0] || "", xLeft, y: yTop, boxW, align: "center", size: stampSize });
-
       if (lines[1]) {
         drawInBox({ text: lines[1], xLeft, y: yTop - lineH, boxW, align: "center", size: stampSize });
       }
@@ -364,7 +340,6 @@ export const handler = async (event) => {
     function drawField(key) {
       const cfg = FIELD_POS[key];
       if (!cfg) return;
-
       if (key === "en_dob_words") return;
 
       const value = cleanText(fields[key]);
@@ -380,9 +355,8 @@ export const handler = async (event) => {
 
       let fontSize = BASE_SIZE * FONT_SCALE;
 
-      if (key === "en_series") {
-        fontSize = fontSize * 0.85;
-      }
+      // только PDF: серия/номер меньше
+      if (key === "en_series") fontSize *= 0.85;
 
       if (key === "en_regplace" || key === "en_regplace2") {
         drawRegplace_5_8_9(key, value);
