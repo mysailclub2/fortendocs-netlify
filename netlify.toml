@@ -1,12 +1,2 @@
 [build]
-  publish = "public"
   functions = "netlify/functions"
-
-[functions]
-  node_bundler = "esbuild"
-  included_files = [
-    "layout-positions.json",
-    "fonts/**",
-    "public/**",
-    "assets_rf2019/**"
-  ]
