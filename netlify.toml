@@ -1,22 +1,5 @@
-[build]
-  publish = "public"
-  functions = "netlify/functions"
-
 [functions]
   node_bundler = "esbuild"
-
-[functions."generate-rf2019"]
-  included_files = [
-    "layout-positions.json",
-    "public/bg_en_rf.jpg",
-    "public/seal.png",
-    "fonts/DejaVuSerif.ttf",
-    "fonts/DejaVuSerif-Bold.ttf"
-  ]
-[functions]
-  node_bundler = "esbuild"
-
-[functions."generate-rf2019"]
   included_files = [
     "layout-positions.json",
     "fonts/**",
