@@ -76,6 +76,20 @@ export const handler = async (event) => {
       maxWidth: boxW,
     });
   }
+// ===== BACKGROUND =====
+const bgPath = path.join(process.cwd(), "public", "bg_rf2019.jpg");
+
+if (fs.existsSync(bgPath)) {
+  const bgBytes = fs.readFileSync(bgPath);
+  const bgImage = await pdfDoc.embedJpg(bgBytes);
+
+  page.drawImage(bgImage, {
+    x: 0,
+    y: 0,
+    width: page.getWidth(),
+    height: page.getHeight(),
+  });
+}
 
   const pdfBytes = await pdfDoc.save();
 
