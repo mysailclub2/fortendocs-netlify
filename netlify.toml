@@ -2,7 +2,14 @@
   publish = "public"
   functions = "netlify/functions"
 
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
+[functions]
+  node_bundler = "esbuild"
+
+[functions."generate-rf2019"]
+  included_files = [
+    "layout-positions.json",
+    "public/bg_en_rf.jpg",
+    "public/seal.png",
+    "fonts/DejaVuSerif.ttf",
+    "fonts/DejaVuSerif-Bold.ttf"
+  ]
